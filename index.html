@@ -71,13 +71,13 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 .progress-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .4s var(--ease)}
 
 /* Question card */
-.q-card{background:var(--white);border-radius:var(--r);padding:36px 32px;margin:16px 0 24px;box-shadow:0 2px 12px rgba(10,40,70,.06)}
-.q-number{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--accent);margin-bottom:10px}
-.q-text{font-size:17px;font-weight:500;color:var(--navy);line-height:1.7;margin-bottom:28px}
+.q-card{background:var(--white);border-radius:var(--r);padding:28px 28px 24px;margin:12px 0 16px;box-shadow:0 2px 12px rgba(10,40,70,.06)}
+.q-number{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--accent);margin-bottom:6px}
+.q-text{font-size:16px;font-weight:500;color:var(--navy);line-height:1.7;margin-bottom:20px}
 
 /* Choices */
-.choices{display:flex;flex-direction:column;gap:10px}
-.choice{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:2px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:all .2s var(--ease);font-size:15px;line-height:1.6}
+.choices{display:flex;flex-direction:column;gap:8px}
+.choice{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border:2px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:all .2s var(--ease);font-size:14px;line-height:1.6}
 .choice:hover{border-color:var(--accent);background:rgba(40,100,240,.03)}
 .choice.selected{border-color:var(--accent);background:rgba(40,100,240,.06)}
 .choice-label{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--navy-06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--navy);transition:all .2s}
@@ -368,6 +368,10 @@ function renderQuestion() {
 function selectChoice(qId, key) {
   answers[qId] = key;
   renderQuestion();
+  // 自動で次の問題へ（最後の問題以外）
+  if (currentIndex < shuffledQuestions.length - 1) {
+    setTimeout(() => { nextQuestion(); }, 350);
+  }
 }
 
 function nextQuestion() {
