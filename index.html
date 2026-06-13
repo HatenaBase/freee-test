@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>freee会計 修了認定テスト | はてなベース株式会社</title>
+<meta name="robots" content="noindex, nofollow"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body,h1,h2,h3,h4,p,ul,ol,li{margin:0;padding:0}
+ul{list-style:none}
+
+:root{
+  --navy:#0A2846;
+  --navy-90:rgba(10,40,70,0.9);
+  --navy-06:rgba(10,40,70,0.06);
+  --text:#191919;
+  --sub:#5a5a5a;
+  --muted:#8a8a8a;
+  --border:#e5e5e5;
+  --bg:#f5f8fb;
+  --white:#ffffff;
+  --accent:#2864F0;
+  --green:#06C755;
+  --red:#E53935;
+  --red-bg:#FFF5F5;
+  --green-bg:#F0FFF4;
+  --font:"Zen Kaku Gothic New",sans-serif;
+  --ease:cubic-bezier(.25,.46,.45,.94);
+  --r:12px;
+  --r-sm:8px;
+}
+body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+
+.container{max-width:760px;margin:0 auto;padding:0 20px}
+
+/* Header */
+.header{background:var(--navy);color:#fff;padding:16px 0;text-align:center}
+.header h1{font-size:18px;font-weight:700;letter-spacing:.05em}
+.header .sub{font-size:12px;opacity:.7;margin-top:2px}
+
+/* Screen visibility */
+.screen{display:none}
+.screen.active{display:block}
+
+/* Start screen */
+.start-card{background:var(--white);border-radius:var(--r);padding:48px 40px;margin:40px 0;box-shadow:0 2px 12px rgba(10,40,70,.06)}
+.start-card h2{font-size:24px;color:var(--navy);margin-bottom:16px}
+.start-card .info{color:var(--sub);font-size:14px;margin-bottom:24px;line-height:1.9}
+.start-card .info li{padding:6px 0;border-bottom:1px solid var(--border)}
+.start-card .info li:last-child{border-bottom:none}
+.start-card .info strong{color:var(--text)}
+
+/* Invalid token */
+.invalid-msg{text-align:center;padding:80px 20px;color:var(--red)}
+.invalid-msg h2{font-size:22px;margin-bottom:12px}
+
+/* Button */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 40px;border-radius:8px;font-family:var(--font);font-size:15px;font-weight:700;cursor:pointer;border:none;transition:all .3s var(--ease)}
+.btn-primary{background:var(--navy);color:#fff;width:100%}
+.btn-primary:hover{background:#0d3358;transform:translateY(-1px);box-shadow:0 6px 20px rgba(10,40,70,.18)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* Progress bar */
+.progress-wrap{background:var(--white);border-radius:var(--r);padding:16px 24px;margin:24px 0 0;box-shadow:0 2px 12px rgba(10,40,70,.06);position:sticky;top:0;z-index:10}
+.progress-info{display:flex;justify-content:space-between;font-size:13px;color:var(--sub);margin-bottom:8px}
+.progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .4s var(--ease)}
+
+/* Question card */
+.q-card{background:var(--white);border-radius:var(--r);padding:36px 32px;margin:16px 0 24px;box-shadow:0 2px 12px rgba(10,40,70,.06)}
+.q-number{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--accent);margin-bottom:10px}
+.q-text{font-size:17px;font-weight:500;color:var(--navy);line-height:1.7;margin-bottom:28px}
+
+/* Choices */
+.choices{display:flex;flex-direction:column;gap:10px}
+.choice{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:2px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:all .2s var(--ease);font-size:15px;line-height:1.6}
+.choice:hover{border-color:var(--accent);background:rgba(40,100,240,.03)}
+.choice.selected{border-color:var(--accent);background:rgba(40,100,240,.06)}
+.choice-label{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--navy-06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--navy);transition:all .2s}
+.choice.selected .choice-label{background:var(--accent);color:#fff}
+.choice-text{padding-top:3px}
+
+/* Nav buttons */
+.nav-row{display:flex;gap:12px;margin:0 0 40px}
+.btn-back{background:transparent;color:var(--navy);border:1px solid var(--border);flex:0 0 auto;padding:14px 24px}
+.btn-back:hover{background:var(--navy-06)}
+.btn-next{flex:1}
+.btn-submit{background:var(--green);flex:1}
+.btn-submit:hover{background:#05a849}
+
+/* Result screen */
+.result-card{background:var(--white);border-radius:var(--r);padding:48px 40px;margin:40px 0;box-shadow:0 2px 12px rgba(10,40,70,.06);text-align:center}
+.result-icon{font-size:64px;margin-bottom:16px}
+.result-title{font-size:28px;font-weight:700;margin-bottom:8px}
+.result-title.pass{color:var(--green)}
+.result-title.fail{color:var(--red)}
+.result-score{font-size:48px;font-weight:700;color:var(--navy);margin:16px 0}
+.result-score span{font-size:20px;color:var(--sub)}
+.result-detail{font-size:14px;color:var(--sub);margin-bottom:32px;line-height:1.9}
+.result-bar{height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin:0 auto 24px;max-width:400px}
+.result-bar-fill{height:100%;border-radius:5px;transition:width 1s var(--ease)}
+.result-bar-fill.pass{background:var(--green)}
+.result-bar-fill.fail{background:var(--red)}
+.pass-line{position:relative;max-width:400px;margin:0 auto}
+.pass-marker{position:absolute;top:-18px;font-size:11px;color:var(--muted);transform:translateX(-50%)}
+
+/* Review section */
+.review-section{margin:40px 0 60px}
+.review-section h3{font-size:18px;color:var(--navy);margin-bottom:16px;text-align:center}
+.review-card{background:var(--white);border-radius:var(--r-sm);padding:20px 24px;margin-bottom:12px;border-left:4px solid var(--green)}
+.review-card.wrong{border-left-color:var(--red)}
+.review-q{font-size:14px;font-weight:500;color:var(--navy);margin-bottom:8px}
+.review-answer{font-size:13px;color:var(--sub)}
+.review-answer .correct{color:var(--green);font-weight:700}
+.review-answer .wrong-a{color:var(--red);font-weight:700}
+.review-explanation{font-size:13px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+
+/* Timer */
+.timer{font-size:13px;color:var(--muted)}
+
+/* Submitting overlay */
+.overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+.overlay.active{display:flex}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Responsive */
+@media(max-width:600px){
+  .start-card,.q-card,.result-card{padding:28px 20px}
+  .q-text{font-size:15px}
+  .result-score{font-size:36px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>freee会計 修了認定テスト</h1>
+  <div class="sub">はてなベース株式会社</div>
+</div>
+
+<!-- Invalid Token Screen -->
+<div id="screen-invalid" class="screen">
+  <div class="container">
+    <div class="invalid-msg">
+      <h2>アクセスできません</h2>
+      <p>このテストURLは無効か、既に使用済みです。<br/>管理者にお問い合わせください。</p>
+    </div>
+  </div>
+</div>
+
+<!-- Start Screen -->
+<div id="screen-start" class="screen">
+  <div class="container">
+    <div class="start-card">
+      <h2>テスト概要</h2>
+      <ul class="info">
+        <li><strong>受験者:</strong> <span id="examinee-name">-</span></li>
+        <li><strong>問題数:</strong> 73問（4択形式）</li>
+        <li><strong>合格ライン:</strong> 75%以上（55問以上正解）</li>
+        <li><strong>制限時間:</strong> なし</li>
+        <li><strong>注意:</strong> 選択肢の順番はランダムに表示されます</li>
+      </ul>
+      <button class="btn btn-primary" onclick="startTest()">テストを開始する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Test Screen -->
+<div id="screen-test" class="screen">
+  <div class="container">
+    <div class="progress-wrap">
+      <div class="progress-info">
+        <span>問題 <strong id="q-current">1</strong> / <strong id="q-total">73</strong></span>
+        <span class="timer" id="timer">00:00</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+
+    <div class="q-card">
+      <div class="q-number" id="q-number">問題 1</div>
+      <div class="q-text" id="q-text"></div>
+      <div class="choices" id="choices"></div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-back" id="btn-back" onclick="prevQuestion()">戻る</button>
+      <button class="btn btn-primary btn-next" id="btn-next" onclick="nextQuestion()">次の問題</button>
+      <button class="btn btn-submit" id="btn-submit" onclick="submitTest()" style="display:none">回答を提出する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Result Screen -->
+<div id="screen-result" class="screen">
+  <div class="container">
+    <div class="result-card">
+      <div class="result-icon" id="result-icon"></div>
+      <div class="result-title" id="result-title"></div>
+      <div class="result-score" id="result-score"></div>
+      <div class="pass-line">
+        <div class="result-bar"><div class="result-bar-fill" id="result-bar-fill"></div></div>
+        <div class="pass-marker" style="left:75%">75%</div>
+      </div>
+      <div class="result-detail" id="result-detail"></div>
+    </div>
+
+    <div class="review-section">
+      <h3>解答の振り返り</h3>
+      <div id="review-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Submitting Overlay -->
+<div class="overlay" id="overlay">
+  <div class="spinner"></div>
+  <div style="color:var(--sub);font-size:14px">結果を送信しています...</div>
+</div>
+
+<script>
+// ===== Configuration =====
+const PASS_RATE = 0.75;
+const GAS_URL = '%%GAS_URL%%'; // GAS Web App URL (to be replaced)
+
+// ===== State =====
+let questions = [];
+let shuffledQuestions = [];
+let answers = {};
+let currentIndex = 0;
+let startTime = null;
+let timerInterval = null;
+let tokenData = null;
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', async () => {
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token');
+
+  if (!token) {
+    showScreen('invalid');
+    return;
+  }
+
+  // Load questions
+  const res = await fetch('questions.json');
+  questions = await res.json();
+
+  // Validate token via GAS
+  if (GAS_URL && GAS_URL !== '%%GAS_URL%%') {
+    try {
+      const vRes = await fetch(`${GAS_URL}?action=validate&token=${encodeURIComponent(token)}`);
+      tokenData = await vRes.json();
+      if (!tokenData.valid) {
+        showScreen('invalid');
+        return;
+      }
+    } catch (e) {
+      // GAS unreachable — allow with token as name
+      tokenData = { valid: true, name: token, org: '' };
+    }
+  } else {
+    // No GAS configured — use token as identifier
+    tokenData = { valid: true, name: token, org: '' };
+  }
+
+  document.getElementById('examinee-name').textContent =
+    tokenData.org ? `${tokenData.name}（${tokenData.org}）` : tokenData.name;
+
+  // Shuffle questions, shuffle choices within each
+  shuffledQuestions = shuffleArray([...questions]).map(q => {
+    const keys = ['A', 'B', 'C', 'D'];
+    const shuffledKeys = shuffleArray([...keys]);
+    const newChoices = {};
+    shuffledKeys.forEach((k, i) => {
+      newChoices[keys[i]] = q.choices[k];
+    });
+    // Map original answer to new key
+    const newAnswer = keys[shuffledKeys.indexOf(q.answer)];
+    return { ...q, choices: newChoices, answer: newAnswer, originalAnswer: q.answer };
+  });
+
+  showScreen('start');
+});
+
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`screen-${name}`).classList.add('active');
+}
+
+// ===== Test Flow =====
+function startTest() {
+  startTime = Date.now();
+  timerInterval = setInterval(updateTimer, 1000);
+  showScreen('test');
+  renderQuestion();
+}
+
+function updateTimer() {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const s = String(elapsed % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = `${m}:${s}`;
+}
+
+function renderQuestion() {
+  const q = shuffledQuestions[currentIndex];
+  const total = shuffledQuestions.length;
+
+  document.getElementById('q-current').textContent = currentIndex + 1;
+  document.getElementById('q-total').textContent = total;
+  document.getElementById('q-number').textContent = `問題 ${currentIndex + 1}`;
+  document.getElementById('q-text').textContent = q.question;
+  document.getElementById('progress-fill').style.width = `${((currentIndex + 1) / total) * 100}%`;
+
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = '';
+  ['A', 'B', 'C', 'D'].forEach(key => {
+    const div = document.createElement('div');
+    div.className = 'choice' + (answers[q.id] === key ? ' selected' : '');
+    div.innerHTML = `<div class="choice-label">${key}</div><div class="choice-text">${q.choices[key]}</div>`;
+    div.addEventListener('click', () => selectChoice(q.id, key));
+    choicesEl.appendChild(div);
+  });
+
+  // Nav buttons
+  document.getElementById('btn-back').style.display = currentIndex === 0 ? 'none' : '';
+  if (currentIndex === total - 1) {
+    document.getElementById('btn-next').style.display = 'none';
+    document.getElementById('btn-submit').style.display = '';
+  } else {
+    document.getElementById('btn-next').style.display = '';
+    document.getElementById('btn-submit').style.display = 'none';
+  }
+}
+
+function selectChoice(qId, key) {
+  answers[qId] = key;
+  renderQuestion();
+}
+
+function nextQuestion() {
+  if (currentIndex < shuffledQuestions.length - 1) {
+    currentIndex++;
+    renderQuestion();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function prevQuestion() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    renderQuestion();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+// ===== Submit =====
+async function submitTest() {
+  const unanswered = shuffledQuestions.filter(q => !answers[q.id]).length;
+  if (unanswered > 0) {
+    if (!confirm(`未回答の問題が${unanswered}問あります。このまま提出しますか？`)) return;
+  }
+
+  clearInterval(timerInterval);
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+  // Calculate score
+  let correct = 0;
+  shuffledQuestions.forEach(q => {
+    if (answers[q.id] === q.answer) correct++;
+  });
+
+  const total = shuffledQuestions.length;
+  const pct = Math.round((correct / total) * 100);
+  const passed = pct >= PASS_RATE * 100;
+
+  // Show overlay & send result
+  document.getElementById('overlay').classList.add('active');
+
+  try {
+    if (GAS_URL && GAS_URL !== '%%GAS_URL%%') {
+      await fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'result',
+          token: new URLSearchParams(location.search).get('token'),
+          name: tokenData.name,
+          org: tokenData.org || '',
+          score: correct,
+          total: total,
+          pct: pct,
+          passed: passed,
+          elapsed: elapsed,
+          timestamp: new Date().toISOString()
+        })
+      });
+    }
+  } catch (e) {
+    console.error('Result submission failed:', e);
+  }
+
+  document.getElementById('overlay').classList.remove('active');
+  showResult(correct, total, pct, passed, elapsed);
+}
+
+function showResult(correct, total, pct, passed, elapsed) {
+  showScreen('result');
+
+  document.getElementById('result-icon').textContent = passed ? '\u{1F389}' : '\u{1F4DA}';
+  const titleEl = document.getElementById('result-title');
+  titleEl.textContent = passed ? '合格' : '不合格';
+  titleEl.className = 'result-title ' + (passed ? 'pass' : 'fail');
+
+  document.getElementById('result-score').innerHTML = `${pct}<span>%</span>`;
+
+  const barFill = document.getElementById('result-bar-fill');
+  barFill.className = 'result-bar-fill ' + (passed ? 'pass' : 'fail');
+  setTimeout(() => { barFill.style.width = `${pct}%`; }, 100);
+
+  const min = Math.floor(elapsed / 60);
+  const sec = elapsed % 60;
+  document.getElementById('result-detail').innerHTML =
+    `${total}問中 <strong>${correct}問</strong> 正解（合格ライン: ${Math.ceil(PASS_RATE * total)}問）<br/>所要時間: ${min}分${sec}秒`;
+
+  // Review list
+  const reviewEl = document.getElementById('review-list');
+  reviewEl.innerHTML = '';
+  shuffledQuestions.forEach((q, i) => {
+    const userAns = answers[q.id];
+    const isCorrect = userAns === q.answer;
+    const div = document.createElement('div');
+    div.className = 'review-card' + (isCorrect ? '' : ' wrong');
+
+    const userText = userAns ? `${userAns}. ${q.choices[userAns]}` : '未回答';
+    const correctText = `${q.answer}. ${q.choices[q.answer]}`;
+
+    div.innerHTML = `
+      <div class="review-q">${i + 1}. ${q.question}</div>
+      <div class="review-answer">
+        あなたの回答: <span class="${isCorrect ? 'correct' : 'wrong-a'}">${userText}</span>
+        ${!isCorrect ? `<br/>正解: <span class="correct">${correctText}</span>` : ''}
+      </div>
+      <div class="review-explanation">${q.explanation}</div>
+    `;
+    reviewEl.appendChild(div);
+  });
+
+  window.scrollTo({ top: 0 });
+}
+</script>
+</body>
+</html>
