@@ -164,10 +164,10 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
       <h2>テスト概要</h2>
       <ul class="info">
         <li><strong>受験者:</strong> <span id="examinee-name">-</span></li>
-        <li><strong>問題数:</strong> 73問（4択形式）</li>
-        <li><strong>合格ライン:</strong> 75%以上（55問以上正解）</li>
+        <li><strong>問題数:</strong> 50問（73問からランダム出題・4択形式）</li>
+        <li><strong>合格ライン:</strong> 75%以上（38問以上正解）</li>
         <li><strong>制限時間:</strong> なし</li>
-        <li><strong>注意:</strong> 選択肢の順番はランダムに表示されます</li>
+        <li><strong>注意:</strong> 問題・選択肢の順番はランダムに表示されます</li>
       </ul>
       <button class="btn btn-primary" onclick="startTest()">テストを開始する</button>
     </div>
@@ -229,6 +229,7 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 <script>
 // ===== Configuration =====
 const PASS_RATE = 0.75;
+const NUM_QUESTIONS = 50; // 73問からランダムに50問出題
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxnTPnWH3iZKBqUawO-B2PR3vfrHmImy3wrnI1JfRmHjkkbJ7PhqrZ9BAY6PBS8HhIfvQ/exec';
 
 // ===== State =====
@@ -289,8 +290,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.start-card .info').appendChild(historyLi);
   }
 
-  // Shuffle questions, shuffle choices within each
-  shuffledQuestions = shuffleArray([...questions]).map(q => {
+  // Shuffle questions, pick NUM_QUESTIONS, shuffle choices within each
+  shuffledQuestions = shuffleArray([...questions]).slice(0, NUM_QUESTIONS).map(q => {
     const keys = ['A', 'B', 'C', 'D'];
     const shuffledKeys = shuffleArray([...keys]);
     const newChoices = {};
