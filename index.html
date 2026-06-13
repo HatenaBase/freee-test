@@ -122,6 +122,9 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 /* Timer */
 .timer{font-size:13px;color:var(--muted)}
 
+/* Admin badge */
+.admin-badge{display:inline-block;background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:2px 12px;border-radius:4px;margin-top:6px;letter-spacing:.05em}
+
 /* Submitting overlay */
 .overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:16px}
 .overlay.active{display:flex}
@@ -141,6 +144,7 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 <div class="header">
   <h1>freee会計 修了認定テスト</h1>
   <div class="sub">はてなベース株式会社</div>
+  <div class="admin-badge" id="admin-badge" style="display:none">管理者プレビュー</div>
 </div>
 
 <!-- Invalid Token Screen -->
@@ -235,11 +239,13 @@ let currentIndex = 0;
 let startTime = null;
 let timerInterval = null;
 let tokenData = null;
+let isAdmin = false;
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(location.search);
   const token = params.get('token');
+  isAdmin = params.get('admin') === '1';
 
   if (!token) {
     showScreen('invalid');
@@ -261,15 +267,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (e) {
       // GAS unreachable — allow with token as name
-      tokenData = { valid: true, name: token, org: '' };
+      tokenData = { valid: true, name: token, org: '', attempts: 0 };
     }
   } else {
     // No GAS configured — use token as identifier
-    tokenData = { valid: true, name: token, org: '' };
+    tokenData = { valid: true, name: token, org: '', attempts: 0 };
+  }
+
+  // Admin badge
+  if (isAdmin) {
+    document.getElementById('admin-badge').style.display = 'inline-block';
   }
 
   document.getElementById('examinee-name').textContent =
     tokenData.org ? `${tokenData.name}（${tokenData.org}）` : tokenData.name;
+
+  // Show attempt history if available
+  if (tokenData.attempts > 0) {
+    const historyLi = document.createElement('li');
+    historyLi.innerHTML = `<strong>受験履歴:</strong> ${tokenData.attempts}回受験済み（最新: ${tokenData.latestPct}% / ${tokenData.latestResult}）`;
+    document.querySelector('.start-card .info').appendChild(historyLi);
+  }
 
   // Shuffle questions, shuffle choices within each
   shuffledQuestions = shuffleArray([...questions]).map(q => {
@@ -386,6 +404,12 @@ async function submitTest() {
   const total = shuffledQuestions.length;
   const pct = Math.round((correct / total) * 100);
   const passed = pct >= PASS_RATE * 100;
+
+  // Admin mode: skip recording
+  if (isAdmin) {
+    showResult(correct, total, pct, passed, elapsed);
+    return;
+  }
 
   // Show overlay & send result
   document.getElementById('overlay').classList.add('active');
