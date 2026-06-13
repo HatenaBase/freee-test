@@ -4,75 +4,120 @@ MAIA協業のfreee研修修了者向けウェブテストシステム。
 
 ## 概要
 
-- 73問の4択テスト（選択肢シャッフル）
-- 合格ライン: 75%（55問以上正解）
+- 73問の問題プールからランダムに50問を出題（4択・選択肢シャッフル）
+- 合格ライン: 75%（38問以上正解）
 - 個別URL（トークン）で受験者を管理
 - 結果はGoogle Sheetsに自動記録
+- 管理者プレビュー機能（`?admin=1`で結果記録なしに受験画面を確認可能）
 
-## セットアップ手順
+## URL
 
-### 1. Google Sheetsを作成
-
-スプレッドシートを新規作成し、以下の2シートを用意:
-
-**シート「トークン管理」のヘッダー（1行目）:**
-| token | name | org | status | created | used_at | URL |
-|-------|------|-----|--------|---------|---------|-----|
-
-**シート「テスト結果」のヘッダー（1行目）:**
-| timestamp | token | name | org | score | total | pct | passed | elapsed |
-|-----------|-------|------|-----|-------|-------|-----|--------|---------|
-
-### 2. GASをデプロイ
-
-1. スプレッドシートの「拡張機能 > Apps Script」を開く
-2. `gas/Code.gs` の内容を貼り付け
-3. `SS_ID` をスプレッドシートのIDに置き換え
-4. `BASE_URL` をGitHub PagesのURL（例: `https://hatenabase.github.io/freee-test/`）に置き換え
-5. 「デプロイ > 新しいデプロイ」→ タイプ: ウェブアプリ
-   - 実行ユーザー: 自分
-   - アクセス: 全員
-6. デプロイURLをコピー
-
-### 3. index.htmlにGAS URLを設定
-
-`index.html` 内の `%%GAS_URL%%` をデプロイURLに置き換え:
-```js
-const GAS_URL = 'https://script.google.com/macros/s/xxxxx/exec';
-```
-
-### 4. GitHub Pagesで公開
-
-```bash
-cd /Users/mamo/freee-test
-git init
-git add .
-git commit -m "freee会計 修了認定テスト 初版"
-gh repo create HatenaBase/freee-test --public --source=. --push
-# GitHub Pages を有効化（Settings > Pages > main branch）
-```
-
-### 5. トークン発行（受験者登録）
-
-1. スプレッドシートの「トークン管理」シートに name と org を入力
-2. メニュー「テスト管理 > トークンを発行する」を実行
-3. メニュー「テスト管理 > テストURLを生成する」を実行
-4. URL列に生成されたURLを受験者に送付
+| リソース | URL |
+|---|---|
+| テストページ | https://hatenabase.github.io/freee-test/?token=xxx |
+| 管理者プレビュー | https://hatenabase.github.io/freee-test/?token=xxx&admin=1 |
+| スプレッドシート | https://docs.google.com/spreadsheets/d/13sA5RMm-m4TtYBH8BmE1RxI4UNmcW2O9vbiQGOVP4A4/edit |
+| GAS | https://script.google.com/d/1YaPj1aoJ0CD-n5nOISj2vN5XXe8cjchAnz8rFv7kvEVFZh9wN3mFUXBv/edit |
 
 ## ファイル構成
 
 ```
 freee-test/
   index.html       ... テスト画面（HTML/CSS/JS一体型）
-  questions.json    ... 問題データ（73問）
+  questions.json    ... 問題データ（73問プール）
   gas/
     Code.gs         ... GASスクリプト（トークン管理・結果記録）
   README.md         ... 本ファイル
 ```
 
-## 運用
+## スプレッドシート構成
 
-- トークンは1回限り有効（受験完了後に `used` に変更）
-- 再試験は新しいトークンを発行する
-- テスト結果は「テスト結果」シートに自動記録
-- 問題の追加・変更は `questions.json` を編集してpush
+### シート「トークン管理」
+
+| カラム | 内容 |
+|---|---|
+| token | 受験者固有トークン（自動生成） |
+| name | 受験者名 |
+| org | 所属組織 |
+| status | active / 受験済 / 合格済 / disabled |
+| created | トークン発行日 |
+| used_at | （未使用） |
+| URL | 受験者用テストURL |
+| attempts | 受験回数（自動カウント） |
+| latest_pct | 最新スコア（例: 75%） |
+| latest_result | 最新結果（合格 / 不合格） |
+| last_tested | 最終受験日時 |
+| admin_URL | 管理者プレビューURL |
+
+### シート「テスト結果」
+
+受験ごとに1行追加される履歴ログ。
+
+| カラム | 内容 |
+|---|---|
+| timestamp | 受験日時 |
+| token | トークン |
+| name | 受験者名 |
+| org | 所属組織 |
+| score | 正解数 |
+| total | 出題数 |
+| pct | 正解率(%) |
+| passed | 合格 / 不合格 |
+| elapsed | 所要時間 |
+
+## 運用手順
+
+### トークン発行（受験者登録）
+
+1. スプレッドシートの「トークン管理」シートに name と org を入力
+2. メニュー「テスト管理 > トークンを発行する」を実行
+3. メニュー「テスト管理 > テストURLを生成する」を実行
+4. URL列に生成されたURLを受験者に送付
+
+### 管理者プレビュー
+
+1. メニュー「テスト管理 > 管理者プレビューURLを生成する」を実行
+2. admin_URL列のリンクから受験者と同じ画面を確認可能（結果は記録されない）
+
+### トークンの状態
+
+| status | 意味 |
+|---|---|
+| active | 未受験（受験可能） |
+| 受験済 | 受験済み・不合格（再受験可能） |
+| 合格済 | 合格（再受験可能） |
+| disabled | アクセス不可（管理者が手動で設定） |
+
+### 問題の追加・変更
+
+`questions.json` を編集してpush。Excelからの変換は以下で実行:
+
+```bash
+python3 -c "
+import openpyxl, json
+wb = openpyxl.load_workbook('freeeテスト問題.xlsx')
+ws = wb[wb.sheetnames[0]]
+questions = []
+for row in ws.iter_rows(min_row=2, max_row=ws.max_row, values_only=True):
+    no, q, a, b, c, d, answer, explanation, url = row
+    if no is None: continue
+    questions.append({
+        'id': int(no), 'question': str(q),
+        'choices': {'A': str(a), 'B': str(b), 'C': str(c), 'D': str(d)},
+        'answer': str(answer), 'explanation': str(explanation),
+        'sourceUrl': str(url) if url else ''
+    })
+with open('questions.json', 'w', encoding='utf-8') as f:
+    json.dump(questions, f, ensure_ascii=False, indent=2)
+print(f'{len(questions)}問を出力')
+"
+```
+
+### 出題数・合格ラインの変更
+
+`index.html` の以下の定数を変更:
+
+```js
+const PASS_RATE = 0.75;      // 合格ライン（75%）
+const NUM_QUESTIONS = 50;     // 出題数（73問プールから抽出）
+```
