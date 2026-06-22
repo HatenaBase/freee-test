@@ -49,10 +49,15 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 /* Start screen */
 .start-card{background:var(--white);border-radius:var(--r);padding:48px 40px;margin:40px 0;box-shadow:0 2px 12px rgba(10,40,70,.06)}
 .start-card h2{font-size:24px;color:var(--navy);margin-bottom:16px}
-.start-card .info{color:var(--sub);font-size:14px;margin-bottom:24px;line-height:1.9}
+.start-card .info{color:var(--sub);font-size:14px;margin-bottom:0;line-height:1.9}
 .start-card .info li{padding:6px 0;border-bottom:1px solid var(--border)}
 .start-card .info li:last-child{border-bottom:none}
 .start-card .info strong{color:var(--text)}
+.start-card .notes-heading{font-size:13px;font-weight:700;color:var(--navy);margin:20px 0 8px;letter-spacing:.03em}
+.start-card .notes{color:var(--muted);font-size:13px;line-height:1.9;margin-bottom:24px}
+.start-card .notes li{padding:4px 0;position:relative;padding-left:16px}
+.start-card .notes li::before{content:"・";position:absolute;left:0}
+.start-card .notes .note-warn{color:var(--red);font-weight:500}
 
 /* Invalid token */
 .invalid-msg{text-align:center;padding:80px 20px;color:var(--red)}
@@ -181,10 +186,14 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
         <li><strong>問題数:</strong> 50問（4択形式）</li>
         <li><strong>合格ライン:</strong> 75%以上（38問以上正解）</li>
         <li><strong>制限時間:</strong> なし（所要時間は記録されます）</li>
+      </ul>
+      <div class="notes-heading">注意事項</div>
+      <ul class="notes">
         <li>回答を選択すると自動で次の問題に進みます</li>
         <li>「戻る」ボタンで前の問題に戻って回答を変更できます</li>
         <li>未回答の問題がある場合、提出前に該当問題へ戻ることができます</li>
-        <li>不合格の場合も再受験が可能です。（出題内容は毎回変わります）<br/>認定試験の合否にカウントされるのは2回目の試験結果までです。</li>
+        <li>不合格の場合も再受験が可能です。（出題内容は毎回変わります）</li>
+        <li class="note-warn">認定試験の合否にカウントされるのは2回目の試験結果までです。</li>
       </ul>
       <button class="btn btn-primary" onclick="startTest()">テストを開始する</button>
     </div>
