@@ -125,6 +125,20 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 /* Admin badge */
 .admin-badge{display:inline-block;background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:2px 12px;border-radius:4px;margin-top:6px;letter-spacing:.05em}
 
+/* Unanswered panel */
+.unanswered-panel{background:var(--white);border-radius:var(--r);padding:24px 28px;margin:0 0 24px;box-shadow:0 2px 12px rgba(10,40,70,.06);border:2px solid var(--red);display:none}
+.unanswered-panel.active{display:block}
+.unanswered-panel h3{font-size:15px;color:var(--red);margin-bottom:12px}
+.unanswered-panel p{font-size:13px;color:var(--sub);margin-bottom:12px}
+.unanswered-nums{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.unanswered-num{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:var(--red-bg);color:var(--red);font-size:13px;font-weight:700;cursor:pointer;border:2px solid var(--red);transition:all .2s var(--ease)}
+.unanswered-num:hover{background:var(--red);color:#fff}
+.unanswered-actions{display:flex;gap:12px}
+.btn-force-submit{background:var(--red);color:#fff;flex:1;font-size:13px;padding:10px 16px}
+.btn-force-submit:hover{background:#c62828}
+.btn-back-to-q{background:transparent;color:var(--navy);border:1px solid var(--border);flex:1;font-size:13px;padding:10px 16px}
+.btn-back-to-q:hover{background:var(--navy-06)}
+
 /* Submitting overlay */
 .overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:16px}
 .overlay.active{display:flex}
@@ -195,6 +209,16 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
       <button class="btn btn-back" id="btn-back" onclick="prevQuestion()">戻る</button>
       <button class="btn btn-primary btn-next" id="btn-next" onclick="nextQuestion()">次の問題</button>
       <button class="btn btn-submit" id="btn-submit" onclick="submitTest()" style="display:none">回答を提出する</button>
+    </div>
+
+    <div class="unanswered-panel" id="unanswered-panel">
+      <h3>未回答の問題があります</h3>
+      <p>番号をタップすると、その問題に移動できます。</p>
+      <div class="unanswered-nums" id="unanswered-nums"></div>
+      <div class="unanswered-actions">
+        <button class="btn btn-back-to-q" onclick="hideUnansweredPanel()">戻る</button>
+        <button class="btn btn-force-submit" onclick="forceSubmit()">未回答のまま提出する</button>
+      </div>
     </div>
   </div>
 </div>
@@ -394,13 +418,53 @@ function prevQuestion() {
   }
 }
 
+// ===== Unanswered Panel =====
+function showUnansweredPanel() {
+  const panel = document.getElementById('unanswered-panel');
+  const numsEl = document.getElementById('unanswered-nums');
+  numsEl.innerHTML = '';
+  shuffledQuestions.forEach((q, i) => {
+    if (!answers[q.id]) {
+      const btn = document.createElement('div');
+      btn.className = 'unanswered-num';
+      btn.textContent = i + 1;
+      btn.addEventListener('click', () => {
+        panel.classList.remove('active');
+        goToQuestion(i);
+      });
+      numsEl.appendChild(btn);
+    }
+  });
+  panel.classList.add('active');
+  panel.scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideUnansweredPanel() {
+  document.getElementById('unanswered-panel').classList.remove('active');
+}
+
+function goToQuestion(index) {
+  currentIndex = index;
+  renderQuestion();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // ===== Submit =====
 async function submitTest() {
   const unanswered = shuffledQuestions.filter(q => !answers[q.id]).length;
   if (unanswered > 0) {
-    if (!confirm(`未回答の問題が${unanswered}問あります。このまま提出しますか？`)) return;
+    showUnansweredPanel();
+    return;
   }
+  doSubmit();
+}
 
+function forceSubmit() {
+  document.getElementById('unanswered-panel').classList.remove('active');
+  doSubmit();
+}
+
+async function doSubmit() {
   clearInterval(timerInterval);
   const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
