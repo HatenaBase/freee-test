@@ -4,7 +4,8 @@ MAIA協業のfreee研修修了者向けウェブテストシステム。
 
 ## 概要
 
-- 73問の問題プールからランダムに50問を出題（4択・選択肢シャッフル）
+- 100問の問題プールから50問を出題（4択・選択肢シャッフル）
+- 必須問題（重要度✓）15問は毎回必ず出題、残り35問はランダム抽出
 - 合格ライン: 75%（38問以上正解）
 - 個別URL（トークン）で受験者を管理
 - 結果はGoogle Sheetsに自動記録
@@ -24,7 +25,7 @@ MAIA協業のfreee研修修了者向けウェブテストシステム。
 ```
 freee-test/
   index.html       ... テスト画面（HTML/CSS/JS一体型）
-  questions.json    ... 問題データ（73問プール）
+  questions.json    ... 問題データ（100問プール、required: trueが必須問題）
   gas/
     Code.gs         ... GASスクリプト（トークン管理・結果記録）
   README.md         ... 本ファイル
@@ -99,17 +100,20 @@ wb = openpyxl.load_workbook('freeeテスト問題.xlsx')
 ws = wb[wb.sheetnames[0]]
 questions = []
 for row in ws.iter_rows(min_row=2, max_row=ws.max_row, values_only=True):
-    no, q, a, b, c, d, answer, explanation, url = row
+    no, importance, q, a, b, c, d, answer, explanation, url = row
     if no is None: continue
     questions.append({
-        'id': int(no), 'question': str(q),
+        'id': int(no),
+        'required': importance is not None and str(importance).strip() != '',
+        'question': str(q),
         'choices': {'A': str(a), 'B': str(b), 'C': str(c), 'D': str(d)},
         'answer': str(answer), 'explanation': str(explanation),
         'sourceUrl': str(url) if url else ''
     })
 with open('questions.json', 'w', encoding='utf-8') as f:
     json.dump(questions, f, ensure_ascii=False, indent=2)
-print(f'{len(questions)}問を出力')
+req = sum(1 for q in questions if q['required'])
+print(f'{len(questions)}問を出力（必須: {req}問）')
 "
 ```
 
@@ -119,5 +123,5 @@ print(f'{len(questions)}問を出力')
 
 ```js
 const PASS_RATE = 0.75;      // 合格ライン（75%）
-const NUM_QUESTIONS = 50;     // 出題数（73問プールから抽出）
+const NUM_QUESTIONS = 50;     // 出題数（必須問題 + ランダムで合計この数）
 ```
