@@ -285,7 +285,10 @@ function validateSkillCheckToken(token) {
   if (!token) return jsonResponse({ valid: false, reason: 'no_token' });
   const sheet = getSheet(SKILL_CHECK_TOKEN_SHEET);
   if (!sheet) return jsonResponse({ valid: false, reason: 'no_sheet' });
-  const data = sheet.getDataRange().getValues();
+  const range = sheet.getDataRange();
+  const data = range.getValues();
+  // latest_pct は「75%」のような表示値で返す（setValueした'75%'はシート内部では0.75になるため、生値だと0.75%と誤表示される）
+  const display = range.getDisplayValues();
   const headers = data[0];
   const attemptsCol = headers.indexOf('attempts');
   const latestPctCol = headers.indexOf('latest_pct');
@@ -303,7 +306,7 @@ function validateSkillCheckToken(token) {
         org: data[i][2],
         // 受験回数は記録・表示のみに使う。上限判定はしない
         attempts: attemptsCol >= 0 ? (data[i][attemptsCol] || 0) : 0,
-        latestPct: latestPctCol >= 0 ? (data[i][latestPctCol] || '') : '',
+        latestPct: latestPctCol >= 0 ? (display[i][latestPctCol] || '') : '',
         latestLevel: latestLevelCol >= 0 ? (data[i][latestLevelCol] || '') : ''
       });
     }
