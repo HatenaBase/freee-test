@@ -222,7 +222,7 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
       <button class="btn btn-primary" id="btn-start" onclick="startTest()">テストを開始する</button>
       <div class="limit-box" id="limit-box" style="display:none">
         <h3>受験可能回数に達しています</h3>
-        <p>試験の受験可能回数は2回までです。延長受講をされる方のみ3回目受験が可能です。</p>
+        <p id="limit-msg">試験の受験可能回数は2回までです。延長受講をされる方のみ3回目受験が可能です。</p>
       </div>
     </div>
 
@@ -439,6 +439,13 @@ function renderAttemptInfo() {
   }
 
   const limited = isAttemptLimitReached();
+  if (limited) {
+    // max_attempts で個別に上限を変えている場合は文言も実態に合わせる
+    const maxA = getMaxAttempts();
+    document.getElementById('limit-msg').textContent = maxA === DEFAULT_MAX_ATTEMPTS
+      ? '試験の受験可能回数は2回までです。延長受講をされる方のみ3回目受験が可能です。'
+      : `試験の受験可能回数は${maxA}回までです。`;
+  }
   document.getElementById('btn-start').style.display = limited ? 'none' : '';
   document.getElementById('limit-box').style.display = limited ? 'block' : 'none';
 }
