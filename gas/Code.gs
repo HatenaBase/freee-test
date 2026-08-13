@@ -72,9 +72,17 @@ function doPost(e) {
 function recordResult(body) {
   // 結果をテスト結果シートに記録
   const resultSheet = getSheet('テスト結果');
+  const timestamp = body.timestamp || new Date().toISOString();
+  const token = body.token || '';
+
+  // 再送による二重記録を防ぐ: 同一トークン・同一タイムスタンプの行が既にあれば何もしない
+  if (token && isAlreadyRecorded(resultSheet, token, timestamp)) {
+    return jsonResponse({ success: true, duplicate: true });
+  }
+
   resultSheet.appendRow([
-    body.timestamp || new Date().toISOString(),
-    body.token || '',
+    timestamp,
+    token,
     body.name || '',
     body.org || '',
     body.score,
@@ -85,11 +93,35 @@ function recordResult(body) {
   ]);
 
   // トークン管理シートを更新（受験回数・最新点数・合否）
-  if (body.token) {
-    updateTokenStats(body.token, body.pct, body.passed);
+  if (token) {
+    updateTokenStats(token, body.pct, body.passed);
   }
 
   return jsonResponse({ success: true });
+}
+
+// テスト結果シートのA列(timestamp)・B列(token)を突き合わせて既記録かを判定する
+function isAlreadyRecorded(sheet, token, timestamp) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+  const rows = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  const target = timestampKey(timestamp);
+  const targetRaw = String(timestamp).trim();
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i][1]).trim() !== String(token).trim()) continue;
+    const cell = rows[i][0];
+    if (timestampKey(cell) === target || String(cell).trim() === targetRaw) return true;
+  }
+  return false;
+}
+
+// シート側でISO文字列が日付値に変換されているケースにも当たるよう、エポックms文字列に正規化する
+function timestampKey(value) {
+  if (value instanceof Date) return String(value.getTime());
+  const s = String(value).trim();
+  if (!s) return '';
+  const t = new Date(s).getTime();
+  return isNaN(t) ? s : String(t);
 }
 
 function updateTokenStats(token, pct, passed) {

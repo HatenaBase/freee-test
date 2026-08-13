@@ -64,6 +64,27 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 .limit-box h3{font-size:15px;color:var(--red);font-weight:700;margin-bottom:8px}
 .limit-box p{font-size:13px;color:var(--sub);line-height:1.9}
 
+/* Resume box (中断データからの再開) */
+.resume-box{background:var(--white);border:2px solid var(--accent);border-radius:var(--r-sm);padding:20px 22px;margin:0 0 24px}
+.resume-box h3{font-size:15px;color:var(--accent);font-weight:700;margin-bottom:8px}
+.resume-box p{font-size:13px;color:var(--sub);line-height:1.9;margin-bottom:14px}
+.resume-actions{display:flex;gap:12px;flex-wrap:wrap}
+.resume-actions .btn{flex:1 1 160px;font-size:14px;padding:12px 16px}
+.btn-resume{background:var(--navy);color:#fff}
+.btn-resume:hover{background:#0d3358}
+.btn-restart{background:transparent;color:var(--navy);border:1px solid var(--border)}
+.btn-restart:hover{background:var(--navy-06)}
+
+/* Pending resend box (送信失敗時の再送導線) */
+.pending-box{background:var(--red-bg);border:2px solid var(--red);border-radius:var(--r-sm);padding:20px 22px;margin:40px 0 0}
+.pending-box h3{font-size:15px;color:var(--red);font-weight:700;margin-bottom:8px}
+.pending-box p{font-size:13px;color:var(--sub);line-height:1.9;margin-bottom:14px}
+.pending-box p:last-child{margin-bottom:0}
+.pending-box .btn-retry{background:var(--red);color:#fff;font-size:14px;padding:12px 24px}
+.pending-box .btn-retry:hover{background:#c62828}
+.pending-box.sent{background:var(--green-bg);border-color:var(--green)}
+.pending-box.sent h3{color:var(--green)}
+
 /* Past results */
 .history-card{background:var(--white);border-radius:var(--r);padding:32px 40px;margin:0 0 40px;box-shadow:0 2px 12px rgba(10,40,70,.06)}
 .history-card h2{font-size:18px;color:var(--navy);margin-bottom:16px}
@@ -203,7 +224,21 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 <!-- Start Screen -->
 <div id="screen-start" class="screen">
   <div class="container">
+    <div class="pending-box" id="pending-box-start" style="display:none">
+      <h3>結果の送信に失敗しました</h3>
+      <p>通信環境をご確認のうえ再送してください</p>
+      <button class="btn btn-retry" onclick="retryPending(this)">結果を再送する</button>
+    </div>
+
     <div class="start-card">
+      <div class="resume-box" id="resume-box" style="display:none">
+        <h3>受験途中のデータがあります</h3>
+        <p id="resume-info"></p>
+        <div class="resume-actions">
+          <button class="btn btn-resume" onclick="resumeTest()">続きから再開する</button>
+          <button class="btn btn-restart" onclick="restartFromScratch()">最初からやり直す</button>
+        </div>
+      </div>
       <h2>テスト概要</h2>
       <ul class="info">
         <li><strong>受験者:</strong> <span id="examinee-name">-</span></li>
@@ -272,6 +307,12 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
 <!-- Result Screen -->
 <div id="screen-result" class="screen">
   <div class="container">
+    <div class="pending-box" id="pending-box-result" style="display:none">
+      <h3>結果の送信に失敗しました</h3>
+      <p>通信環境をご確認のうえ再送してください</p>
+      <button class="btn btn-retry" onclick="retryPending(this)">結果を再送する</button>
+    </div>
+
     <div class="result-card">
       <div class="result-icon" id="result-icon"></div>
       <div class="result-title" id="result-title"></div>
@@ -308,6 +349,10 @@ const NUM_QUESTIONS = 50; // 必須問題 + ランダム問題で合計50問出�
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxnTPnWH3iZKBqUawO-B2PR3vfrHmImy3wrnI1JfRmHjkkbJ7PhqrZ9BAY6PBS8HhIfvQ/exec';
 const DEFAULT_MAX_ATTEMPTS = 2; // 受験可能回数のデフォルト（GAS側 max_attempts 列で個別に上書き）
 const STORAGE_PREFIX = 'freeeTestResults_';
+const PROGRESS_PREFIX = 'freeeTestProgress_'; // 受験途中の進捗（中断復帰用）
+const PENDING_PREFIX = 'freeeTestPending_';   // 送信失敗した結果（再送用）
+const PROGRESS_TTL_MS = 24 * 60 * 60 * 1000;  // 進捗データの有効期限（24時間）
+const SUBMIT_TIMEOUT_MS = 15000;              // 結果送信のタイムアウト
 
 // ===== State =====
 let questions = [];
@@ -320,6 +365,8 @@ let tokenData = null;
 let isAdmin = false;
 let currentToken = '';
 let reviewingUnanswered = false; // 提出前チェックから未回答問題へ戻っている状態
+let testInProgress = false;      // テスト画面表示中（自動保存・離脱警告の対象）
+let savedProgress = null;        // 復元候補の進捗データ
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', async () => {
@@ -367,6 +414,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderAttemptInfo();
   // 過去の受験結果（localStorage）
   renderHistory();
+  // 中断データからの再開ボックス / 送信失敗の再送ボックス
+  renderResumeBox();
+  renderPendingBoxes();
 
   buildQuestionSet();
 
@@ -517,7 +567,140 @@ function backToTop() {
   showScreen('start');
   renderAttemptInfo();
   renderHistory();
+  renderResumeBox();
+  renderPendingBoxes();
   window.scrollTo({ top: 0 });
+}
+
+// ===== 中断データの保存・復元（機能A） =====
+function progressKey() {
+  return PROGRESS_PREFIX + currentToken;
+}
+
+// 回答選択・問題移動のたびに呼ばれる。失敗しても受験フローは止めない
+function saveProgress() {
+  if (isAdmin || !testInProgress) return;
+  try {
+    localStorage.setItem(progressKey(), JSON.stringify({
+      savedAt: new Date().toISOString(),
+      shuffledQuestions: shuffledQuestions,
+      answers: answers,
+      currentIndex: currentIndex,
+      elapsed: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
+    }));
+  } catch (e) {
+    console.warn('Failed to save progress:', e);
+  }
+}
+
+function clearProgress() {
+  savedProgress = null;
+  try {
+    localStorage.removeItem(progressKey());
+  } catch (e) {
+    console.warn('Failed to clear progress:', e);
+  }
+}
+
+// 24時間以内・形式が壊れていない進捗だけを復元候補として返す
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(progressKey());
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (!p || !Array.isArray(p.shuffledQuestions) || !p.shuffledQuestions.length) return null;
+    const savedAt = new Date(p.savedAt).getTime();
+    if (isNaN(savedAt) || Date.now() - savedAt > PROGRESS_TTL_MS) {
+      clearProgress();
+      return null;
+    }
+    p.answers = (p.answers && typeof p.answers === 'object') ? p.answers : {};
+    p.currentIndex = Number(p.currentIndex) || 0;
+    p.elapsed = Number(p.elapsed) || 0;
+    return p;
+  } catch (e) {
+    console.warn('Failed to load progress:', e);
+    return null;
+  }
+}
+
+function renderResumeBox() {
+  const box = document.getElementById('resume-box');
+  const startBtn = document.getElementById('btn-start');
+  if (!box) return;
+
+  // 管理者プレビュー・受験回数上限に達している場合は再開させない
+  if (isAdmin) {
+    box.style.display = 'none';
+    return;
+  }
+  if (isAttemptLimitReached()) {
+    clearProgress();
+    box.style.display = 'none';
+    return;
+  }
+
+  savedProgress = loadProgress();
+  if (!savedProgress) {
+    box.style.display = 'none';
+    if (startBtn) startBtn.style.display = '';
+    return;
+  }
+
+  const answered = Object.keys(savedProgress.answers).filter(k => savedProgress.answers[k]).length;
+  document.getElementById('resume-info').textContent =
+    `保存: ${formatDateJa(savedProgress.savedAt)} / 回答済み: ${answered}/${savedProgress.shuffledQuestions.length}問`;
+  box.style.display = 'block';
+  // 「テストを開始する」と「最初からやり直す」が並ぶと紛らわしいため、再開ボックス表示中は開始ボタンを隠す
+  if (startBtn) startBtn.style.display = 'none';
+}
+
+function resumeTest() {
+  const p = savedProgress || loadProgress();
+  if (!p) {
+    renderResumeBox();
+    return;
+  }
+
+  shuffledQuestions = p.shuffledQuestions;
+  answers = p.answers;
+  currentIndex = Math.min(Math.max(0, p.currentIndex), shuffledQuestions.length - 1);
+  reviewingUnanswered = false;
+  hideUnansweredPanel();
+
+  // 経過時間を引き継いでタイマーを再開
+  startTime = Date.now() - p.elapsed * 1000;
+  clearInterval(timerInterval);
+  updateTimer();
+  timerInterval = setInterval(updateTimer, 1000);
+
+  testInProgress = true;
+  enableLeaveWarning();
+  showScreen('test');
+  renderQuestion();
+  saveProgress();
+  window.scrollTo({ top: 0 });
+}
+
+function restartFromScratch() {
+  clearProgress();
+  renderResumeBox();
+  startTest();
+}
+
+// ===== 離脱警告（機能B） =====
+function beforeUnloadHandler(e) {
+  e.preventDefault();
+  e.returnValue = '';
+  return '';
+}
+
+function enableLeaveWarning() {
+  window.addEventListener('beforeunload', beforeUnloadHandler);
+}
+
+function disableLeaveWarning() {
+  window.removeEventListener('beforeunload', beforeUnloadHandler);
 }
 
 // ===== Test Flow =====
@@ -537,8 +720,11 @@ function startTest() {
   document.getElementById('timer').textContent = '00:00';
   clearInterval(timerInterval);
   timerInterval = setInterval(updateTimer, 1000);
+  testInProgress = true;
+  enableLeaveWarning();
   showScreen('test');
   renderQuestion();
+  saveProgress();
   window.scrollTo({ top: 0 });
 }
 
@@ -586,6 +772,7 @@ function renderQuestion() {
 function selectChoice(qId, key) {
   answers[qId] = key;
   renderQuestion();
+  saveProgress();
   if (reviewingUnanswered) {
     // 未回答チェック中: 次の未回答問題へ。全問埋まったら提出画面（最終問題）へ戻る
     setTimeout(() => { goToNextUnansweredOrSubmit(); }, 350);
@@ -613,6 +800,7 @@ function nextQuestion() {
   if (currentIndex < shuffledQuestions.length - 1) {
     currentIndex++;
     renderQuestion();
+    saveProgress();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
@@ -621,6 +809,7 @@ function prevQuestion() {
   if (currentIndex > 0) {
     currentIndex--;
     renderQuestion();
+    saveProgress();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
@@ -654,6 +843,7 @@ function hideUnansweredPanel() {
 function goToQuestion(index) {
   currentIndex = index;
   renderQuestion();
+  saveProgress();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -674,6 +864,10 @@ function forceSubmit() {
 
 async function doSubmit() {
   clearInterval(timerInterval);
+  // 提出に入った時点で離脱警告と自動保存を止め、進捗データを破棄する
+  testInProgress = false;
+  disableLeaveWarning();
+  if (!isAdmin) clearProgress(); // 管理者プレビューが受験者の進捗を消さないようにする
   const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
   // Calculate score
@@ -697,28 +891,28 @@ async function doSubmit() {
   // Show overlay & send result
   document.getElementById('overlay').classList.add('active');
 
-  try {
-    if (GAS_URL && GAS_URL !== '%%GAS_URL%%') {
-      await fetch(GAS_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'result',
-          token: new URLSearchParams(location.search).get('token'),
-          name: tokenData.name,
-          org: tokenData.org || '',
-          score: correct,
-          total: total,
-          pct: pct,
-          passed: passed,
-          elapsed: elapsed,
-          timestamp: resultData.date
-        })
-      });
+  const payload = {
+    action: 'result',
+    token: new URLSearchParams(location.search).get('token'),
+    name: tokenData.name,
+    org: tokenData.org || '',
+    score: correct,
+    total: total,
+    pct: pct,
+    passed: passed,
+    elapsed: elapsed,
+    timestamp: resultData.date
+  };
+
+  if (GAS_URL && GAS_URL !== '%%GAS_URL%%') {
+    try {
+      await sendResult(payload);
+      clearPending();
+    } catch (e) {
+      // ネットワーク断・タイムアウト。結果画面に再送導線を出すためペイロードを保存する
+      console.error('Result submission failed:', e);
+      savePending(payload);
     }
-  } catch (e) {
-    console.error('Result submission failed:', e);
   }
 
   // 過去の受験結果としてローカルに保存（失敗しても提出フローは止めない）
@@ -734,6 +928,99 @@ async function doSubmit() {
 
   document.getElementById('overlay').classList.remove('active');
   showResult(resultData);
+}
+
+// ===== 結果送信と再送（機能C） =====
+// 15秒のタイムアウト付きで送信する。no-cors のためレスポンス内容は判定に使えない
+function sendResult(payload) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
+  return fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: controller.signal
+  }).finally(() => clearTimeout(timer));
+}
+
+function pendingKey() {
+  return PENDING_PREFIX + currentToken;
+}
+
+function savePending(payload) {
+  if (isAdmin) return;
+  try {
+    localStorage.setItem(pendingKey(), JSON.stringify(payload));
+  } catch (e) {
+    console.warn('Failed to save pending result:', e);
+  }
+}
+
+function loadPending() {
+  if (isAdmin) return null;
+  try {
+    const raw = localStorage.getItem(pendingKey());
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    return (p && typeof p === 'object') ? p : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearPending() {
+  try {
+    localStorage.removeItem(pendingKey());
+  } catch (e) {
+    console.warn('Failed to clear pending result:', e);
+  }
+}
+
+const PENDING_BOX_IDS = ['pending-box-start', 'pending-box-result'];
+
+function renderPendingBoxes() {
+  const has = !!loadPending();
+  PENDING_BOX_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'pending-box';
+    el.innerHTML =
+      '<h3>結果の送信に失敗しました</h3>' +
+      '<p>通信環境をご確認のうえ再送してください</p>' +
+      '<button class="btn btn-retry" onclick="retryPending(this)">結果を再送する</button>';
+    el.style.display = has ? 'block' : 'none';
+  });
+}
+
+function showPendingSent() {
+  PENDING_BOX_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'pending-box sent';
+    el.innerHTML = '<h3>結果を送信しました</h3><p>受験結果の記録が完了しました。</p>';
+    el.style.display = 'block';
+  });
+}
+
+async function retryPending(btn) {
+  const payload = loadPending();
+  if (!payload) {
+    renderPendingBoxes();
+    return;
+  }
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  try {
+    await sendResult(payload);
+    clearPending();
+    showPendingSent();
+  } catch (e) {
+    console.error('Result resubmission failed:', e);
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 // 保存・再表示の両方で使える形に結果を組み立てる
@@ -760,6 +1047,8 @@ function buildResultData(correct, total, pct, passed, elapsed) {
 
 function showResult(r) {
   showScreen('result');
+  // 送信失敗が残っていれば結果画面の上部に再送導線を出す
+  renderPendingBoxes();
 
   const passed = !!r.passed;
   document.getElementById('result-icon').textContent = passed ? '\u{1F389}' : '\u{1F4DA}';
