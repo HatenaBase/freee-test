@@ -251,7 +251,7 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
         <li>回答を選択すると自動で次の問題に進みます</li>
         <li>「戻る」ボタンで前の問題に戻って回答を変更できます</li>
         <li>未回答の問題がある場合、提出前に該当問題へ戻ることができます</li>
-        <li>不合格の場合も再受験が可能です。（出題内容は毎回変わります）</li>
+        <li id="note-retake">不合格の場合も再受験が可能です。（出題内容は毎回変わります）</li>
         <li class="note-warn" id="note-attempts">受験可能回数は2回までです（延長受講の方のみ3回目受験可）。合否にカウントされるのは2回目の結果までです。</li>
       </ul>
       <button class="btn btn-primary" id="btn-start" onclick="startTest()">テストを開始する</button>
@@ -498,6 +498,9 @@ function renderAttemptInfo() {
       ? '受験可能回数は2回までです（延長受講の方のみ3回目受験可）。合否にカウントされるのは2回目の結果までです。'
       : `受験可能回数は${maxA}回までです。合否にカウントされるのは${maxA}回目の結果までです。`;
   }
+  // 上限1回の場合「不合格でも再受験可能」の案内は矛盾するため非表示にする
+  const noteRetake = document.getElementById('note-retake');
+  if (noteRetake) noteRetake.style.display = maxA === 1 ? 'none' : '';
 
   const limited = isAttemptLimitReached();
   if (limited) {
