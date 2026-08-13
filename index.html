@@ -253,6 +253,7 @@ body{font-family:var(--font);font-size:16px;line-height:1.8;color:var(--text);ba
     <div class="nav-row">
       <button class="btn btn-back" id="btn-back" onclick="prevQuestion()">戻る</button>
       <button class="btn btn-primary btn-next" id="btn-next" onclick="nextQuestion()">次の問題</button>
+      <button class="btn btn-submit" id="btn-to-submit" onclick="returnToSubmit()" style="display:none">提出画面に戻る</button>
       <button class="btn btn-submit" id="btn-submit" onclick="submitTest()" style="display:none">回答を提出する</button>
     </div>
 
@@ -318,6 +319,7 @@ let timerInterval = null;
 let tokenData = null;
 let isAdmin = false;
 let currentToken = '';
+let reviewingUnanswered = false; // 提出前チェックから未回答問題へ戻っている状態
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', async () => {
@@ -527,6 +529,7 @@ function startTest() {
   // 2回目以降（トップに戻ってからの再受験）に備えて状態を初期化
   answers = {};
   currentIndex = 0;
+  reviewingUnanswered = false;
   hideUnansweredPanel();
   buildQuestionSet();
 
@@ -575,15 +578,35 @@ function renderQuestion() {
     document.getElementById('btn-next').style.display = '';
     document.getElementById('btn-submit').style.display = 'none';
   }
+  // 未回答チェックから戻っている間は、いつでも提出画面（最終問題）へ戻れるようにする
+  document.getElementById('btn-to-submit').style.display =
+    (reviewingUnanswered && currentIndex !== total - 1) ? '' : 'none';
 }
 
 function selectChoice(qId, key) {
   answers[qId] = key;
   renderQuestion();
-  // 自動で次の問題へ（最後の問題以外）
-  if (currentIndex < shuffledQuestions.length - 1) {
+  if (reviewingUnanswered) {
+    // 未回答チェック中: 次の未回答問題へ。全問埋まったら提出画面（最終問題）へ戻る
+    setTimeout(() => { goToNextUnansweredOrSubmit(); }, 350);
+  } else if (currentIndex < shuffledQuestions.length - 1) {
+    // 自動で次の問題へ（最後の問題以外）
     setTimeout(() => { nextQuestion(); }, 350);
   }
+}
+
+function goToNextUnansweredOrSubmit() {
+  const nextIdx = shuffledQuestions.findIndex(q => !answers[q.id]);
+  if (nextIdx >= 0) {
+    goToQuestion(nextIdx);
+  } else {
+    returnToSubmit();
+  }
+}
+
+function returnToSubmit() {
+  reviewingUnanswered = false;
+  goToQuestion(shuffledQuestions.length - 1);
 }
 
 function nextQuestion() {
@@ -614,6 +637,7 @@ function showUnansweredPanel() {
       btn.textContent = i + 1;
       btn.addEventListener('click', () => {
         panel.classList.remove('active');
+        reviewingUnanswered = true;
         goToQuestion(i);
       });
       numsEl.appendChild(btn);
