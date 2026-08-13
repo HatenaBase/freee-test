@@ -428,7 +428,14 @@ function renderAttemptInfo() {
       historyLi.id = 'attempt-history';
       infoList.appendChild(historyLi);
     }
-    historyLi.innerHTML = `<strong>受験履歴:</strong> ${attempts}回受験済み（最新: ${tokenData.latestPct}% / ${tokenData.latestResult}）`;
+    // latest_pct はシート側で「76%」の文字列や空欄のことがあるため表記を正規化する
+    const latestPct = (tokenData.latestPct === null || tokenData.latestPct === undefined) ? '' : String(tokenData.latestPct).replace(/%$/, '');
+    const latestResult = tokenData.latestResult || '';
+    const latestParts = [];
+    if (latestPct !== '') latestParts.push(`${latestPct}%`);
+    if (latestResult) latestParts.push(latestResult);
+    const latestInfo = latestParts.length ? `（最新: ${latestParts.join(' / ')}）` : '';
+    historyLi.innerHTML = `<strong>受験履歴:</strong> ${attempts}回受験済み${latestInfo}`;
   }
 
   const limited = isAttemptLimitReached();
