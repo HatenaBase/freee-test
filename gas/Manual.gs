@@ -1,6 +1,6 @@
 // =====================================================================
 // 運営担当者向けの説明書タブを作る
-//  ・「使い方」      … スライド画像版。createSlideManualSheet() を実行する
+//  ・「使い方」      … 操作手順の画像版。createSlideManualSheet() を実行する
 //  ・「使い方_詳細」 … 文章版。createManualSheet() を実行する
 // どちらも、同名のシートが既にあれば中身を消して作り直す（他のシートには触れない）。
 // 説明文は gas/Code.gs・index.html・boki/index.html・README.md の実装に合わせてある。
@@ -12,7 +12,7 @@ const MANUAL_UPDATED = '2026/10/01'; // 説明書の内容を最後に見直し�
 
 // スライドPNG（docs/manual/png/slide_NN.png）を置いた Drive フォルダ（m.miwa@hatenabase.com の非公開フォルダ「freee-test_使い方スライド」）
 const SLIDE_FOLDER_ID = '13UXOvqVkks73O8QntBzOXObC_FKyb73i';
-const SLIDE_IMAGE_WIDTH = 960;   // シート上の表示幅（px）。高さは 16:9 で 540
+const SLIDE_IMAGE_WIDTH = 960;   // シート上の表示幅（px）。高さは各PNGの縦横比に合わせる
 const SLIDE_ROW_HEIGHT = 20;     // スライドを並べる行の高さ（px）
 const SLIDE_GAP_ROWS = 2;        // スライド同士の間を空ける行数
 const SLIDE_FIRST_ROW = 3;       // 1枚目を置く行（1行目は見出し）
@@ -46,9 +46,17 @@ function createSlideManualSheet() {
     sheet = ss.insertSheet(SLIDE_MANUAL_SHEET, 0);
   }
 
-  const imageHeight = Math.round(SLIDE_IMAGE_WIDTH * 9 / 16);
-  const rowsPerSlide = Math.ceil(imageHeight / SLIDE_ROW_HEIGHT) + SLIDE_GAP_ROWS;
-  const lastRow = SLIDE_FIRST_ROW + rowsPerSlide * files.length;
+  // 各PNGの高さ（表示幅に合わせて縮小後）と、置く行を先に決める
+  const placed = [];
+  let row = SLIDE_FIRST_ROW;
+  files.forEach(function (f) {
+    const blob = f.getBlob();
+    const size = pngSize_(blob);
+    const h = Math.round(SLIDE_IMAGE_WIDTH * size.height / size.width);
+    placed.push({ file: f, blob: blob, row: row, height: h });
+    row += Math.ceil(h / SLIDE_ROW_HEIGHT) + SLIDE_GAP_ROWS;
+  });
+  const lastRow = row;
   if (sheet.getMaxRows() < lastRow) sheet.insertRowsAfter(sheet.getMaxRows(), lastRow - sheet.getMaxRows());
   if (sheet.getMaxColumns() < 3) sheet.insertColumnsAfter(sheet.getMaxColumns(), 3 - sheet.getMaxColumns());
 
@@ -58,16 +66,16 @@ function createSlideManualSheet() {
   sheet.setRowHeight(1, 32);
   sheet.setRowHeightsForced(2, sheet.getMaxRows() - 1, SLIDE_ROW_HEIGHT);
   sheet.getRange(1, 2, 1, 2).setValues([[
-    '使い方（スライド版・運営担当者向け）　更新日: ' + MANUAL_UPDATED + '　／　文章版・詳しい説明は「' + MANUAL_SHEET + '」タブ',
+    '使い方（操作手順）　／　詳しい説明は「' + MANUAL_SHEET + '」タブ',
     '社外秘 / Confidential'
   ]]).setFontFamily('Arial').setVerticalAlignment('middle');
   sheet.getRange(1, 2).setFontSize(12).setFontWeight('bold').setFontColor('#0A2846');
   sheet.getRange(1, 3).setFontSize(9).setFontColor('#808080');
 
-  files.forEach(function (f, i) {
-    const img = sheet.insertImage(f.getBlob(), 2, SLIDE_FIRST_ROW + rowsPerSlide * i, 0, 0);
-    img.setWidth(SLIDE_IMAGE_WIDTH).setHeight(imageHeight);
-    img.setAltTextTitle(f.getName());
+  placed.forEach(function (p) {
+    const img = sheet.insertImage(p.blob, 2, p.row, 0, 0);
+    img.setWidth(SLIDE_IMAGE_WIDTH).setHeight(p.height);
+    img.setAltTextTitle(p.file.getName());
   });
 
   // 「使い方」を左端、「使い方_詳細」をその右隣にする
@@ -89,6 +97,13 @@ function createSlideManualSheet() {
   }
 }
 
+// PNG の幅・高さ（px）を IHDR チャンクから読む
+function pngSize_(blob) {
+  const b = blob.getBytes();
+  const u = function (i) { return ((b[i] & 0xff) << 24 | (b[i + 1] & 0xff) << 16 | (b[i + 2] & 0xff) << 8 | (b[i + 3] & 0xff)) >>> 0; };
+  return { width: u(16), height: u(20) };
+}
+
 function createManualSheet() {
   const ss = SpreadsheetApp.openById(SS_ID);
   let sheet = ss.getSheetByName(MANUAL_SHEET);
@@ -108,7 +123,7 @@ function createManualSheet() {
   const entries = manualEntries();
   const values = [
     ['使い方_詳細（文章版）', '社外秘 / Confidential'],
-    ['更新日: ' + MANUAL_UPDATED + ' ／ 対象: 運営担当者（はてなベース・MAIA事務局） ／ 内容はシステムの実装に基づく ／ 画面つきの概要は「' + SLIDE_MANUAL_SHEET + '」タブ', ''],
+    ['更新日: ' + MANUAL_UPDATED + ' ／ 対象: 運営担当者（はてなベース・MAIA事務局） ／ 内容はシステムの実装に基づく ／ 画面つきの操作手順は「' + SLIDE_MANUAL_SHEET + '」タブ', ''],
     ['項目', '説明']
   ];
   const kinds = ['title', 'meta', 'header'];
@@ -209,7 +224,7 @@ function manualEntries() {
 
     // ---------------------------------------------------------------
     ['2. タブの役割'],
-    [SLIDE_MANUAL_SHEET, '画面のスクリーンショットつきの説明書（スライド版）。作り直すと内容がリセットされるため、ここには追記しないでください。'],
+    [SLIDE_MANUAL_SHEET, '操作手順（画面つき・画像）。作り直すと内容がリセットされるため、ここには追記しないでください。'],
     [MANUAL_SHEET, 'この説明書（文章版）。細かい仕様やトラブルの対処はこちらに書いています。作り直すと内容がリセットされるため、ここには追記しないでください。'],
     [tokenSheet, '修了認定テストの受験者台帳（1人1行）。受験者の追加・トークン発行・URL生成・案内メール送信をここで行います。'],
     [resultSheet, '修了認定テストの受験履歴。受験1回ごとに1行が自動で追加されます。手入力は不要です。'],
