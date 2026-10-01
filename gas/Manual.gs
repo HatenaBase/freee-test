@@ -1,12 +1,93 @@
 // =====================================================================
-// 運営担当者向けの説明書タブ「使い方」を作る
-// GASエディタで createManualSheet() を実行する。
-// 「使い方」シートが既にあれば中身をクリアして作り直す（他のシートには触れない）。
+// 運営担当者向けの説明書タブを作る
+//  ・「使い方」      … スライド画像版。createSlideManualSheet() を実行する
+//  ・「使い方_詳細」 … 文章版。createManualSheet() を実行する
+// どちらも、同名のシートが既にあれば中身を消して作り直す（他のシートには触れない）。
 // 説明文は gas/Code.gs・index.html・boki/index.html・README.md の実装に合わせてある。
-// コード側の仕様（列・メニュー名・定数）を変えたら、ここの文言も合わせて直すこと。
+// コード側の仕様（列・メニュー名・定数）を変えたら、ここの文言とスライド（docs/manual/）も合わせて直すこと。
 // =====================================================================
-const MANUAL_SHEET = '使い方';
+const MANUAL_SHEET = '使い方_詳細';          // 文章版
+const SLIDE_MANUAL_SHEET = '使い方';         // スライド画像版
 const MANUAL_UPDATED = '2026/10/01'; // 説明書の内容を最後に見直した日
+
+// スライドPNG（docs/manual/png/slide_NN.png）を置いた Drive フォルダ（m.miwa@hatenabase.com の非公開フォルダ「freee-test_使い方スライド」）
+const SLIDE_FOLDER_ID = '13UXOvqVkks73O8QntBzOXObC_FKyb73i';
+const SLIDE_IMAGE_WIDTH = 960;   // シート上の表示幅（px）。高さは 16:9 で 540
+const SLIDE_ROW_HEIGHT = 20;     // スライドを並べる行の高さ（px）
+const SLIDE_GAP_ROWS = 2;        // スライド同士の間を空ける行数
+const SLIDE_FIRST_ROW = 3;       // 1枚目を置く行（1行目は見出し）
+
+// 「使い方」（スライド画像版）を作る。
+// Drive フォルダ内の PNG をファイル名順に読み込み、縦に重ならないよう並べる。
+// 初回だけ、旧版の文章タブ「使い方」が残っていて「使い方_詳細」が無ければ、それを「使い方_詳細」に改名して残す。
+function createSlideManualSheet() {
+  const ss = SpreadsheetApp.openById(SS_ID);
+
+  const files = [];
+  const it = DriveApp.getFolderById(SLIDE_FOLDER_ID).getFiles();
+  while (it.hasNext()) {
+    const f = it.next();
+    if (f.getMimeType() === MimeType.PNG) files.push(f);
+  }
+  files.sort(function (a, b) { return a.getName() < b.getName() ? -1 : (a.getName() > b.getName() ? 1 : 0); });
+  if (files.length === 0) throw new Error('Drive フォルダにPNGがありません（' + SLIDE_FOLDER_ID + '）。');
+
+  let sheet = ss.getSheetByName(SLIDE_MANUAL_SHEET);
+  if (sheet && sheet.getImages().length === 0 && !ss.getSheetByName(MANUAL_SHEET)) {
+    // 旧版（文章版）の「使い方」 → 「使い方_詳細」に改名して残す
+    sheet.setName(MANUAL_SHEET);
+    sheet = null;
+  }
+  if (sheet) {
+    sheet.getImages().forEach(function (img) { img.remove(); });
+    sheet.clear();
+    sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
+  } else {
+    sheet = ss.insertSheet(SLIDE_MANUAL_SHEET, 0);
+  }
+
+  const imageHeight = Math.round(SLIDE_IMAGE_WIDTH * 9 / 16);
+  const rowsPerSlide = Math.ceil(imageHeight / SLIDE_ROW_HEIGHT) + SLIDE_GAP_ROWS;
+  const lastRow = SLIDE_FIRST_ROW + rowsPerSlide * files.length;
+  if (sheet.getMaxRows() < lastRow) sheet.insertRowsAfter(sheet.getMaxRows(), lastRow - sheet.getMaxRows());
+  if (sheet.getMaxColumns() < 3) sheet.insertColumnsAfter(sheet.getMaxColumns(), 3 - sheet.getMaxColumns());
+
+  sheet.setHiddenGridlines(true);
+  sheet.setColumnWidth(1, 24);
+  sheet.setColumnWidth(2, SLIDE_IMAGE_WIDTH);
+  sheet.setRowHeight(1, 32);
+  sheet.setRowHeightsForced(2, sheet.getMaxRows() - 1, SLIDE_ROW_HEIGHT);
+  sheet.getRange(1, 2, 1, 2).setValues([[
+    '使い方（スライド版・運営担当者向け）　更新日: ' + MANUAL_UPDATED + '　／　文章版・詳しい説明は「' + MANUAL_SHEET + '」タブ',
+    '社外秘 / Confidential'
+  ]]).setFontFamily('Arial').setVerticalAlignment('middle');
+  sheet.getRange(1, 2).setFontSize(12).setFontWeight('bold').setFontColor('#0A2846');
+  sheet.getRange(1, 3).setFontSize(9).setFontColor('#808080');
+
+  files.forEach(function (f, i) {
+    const img = sheet.insertImage(f.getBlob(), 2, SLIDE_FIRST_ROW + rowsPerSlide * i, 0, 0);
+    img.setWidth(SLIDE_IMAGE_WIDTH).setHeight(imageHeight);
+    img.setAltTextTitle(f.getName());
+  });
+
+  // 「使い方」を左端、「使い方_詳細」をその右隣にする
+  ss.setActiveSheet(sheet);
+  ss.moveActiveSheet(1);
+  const detail = ss.getSheetByName(MANUAL_SHEET);
+  if (detail) {
+    ss.setActiveSheet(detail);
+    ss.moveActiveSheet(2);
+  }
+  ss.setActiveSheet(sheet);
+
+  const msg = 'シート「' + SLIDE_MANUAL_SHEET + '」にスライド' + files.length + '枚を貼りました。';
+  Logger.log(msg);
+  try {
+    SpreadsheetApp.getUi().alert(msg);
+  } catch (err) {
+    // GASエディタから直接実行したときは getUi() が使えないため、ログ出力のみ
+  }
+}
 
 function createManualSheet() {
   const ss = SpreadsheetApp.openById(SS_ID);
@@ -16,16 +97,18 @@ function createManualSheet() {
     sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
     sheet.getBandings().forEach(function (b) { b.remove(); });
     sheet.clearConditionalFormatRules();
-    ss.setActiveSheet(sheet);
-    ss.moveActiveSheet(1);
   } else {
-    sheet = ss.insertSheet(MANUAL_SHEET, 0);
+    sheet = ss.insertSheet(MANUAL_SHEET);
   }
+  // 「使い方」（スライド版）があればその右隣、無ければ左端に置く
+  const slideSheet = ss.getSheetByName(SLIDE_MANUAL_SHEET);
+  ss.setActiveSheet(sheet);
+  ss.moveActiveSheet(slideSheet ? slideSheet.getIndex() + 1 : 1);
 
   const entries = manualEntries();
   const values = [
-    ['使い方（運営担当者向け）', '社外秘 / Confidential'],
-    ['更新日: ' + MANUAL_UPDATED + ' ／ 対象: 運営担当者（はてなベース・MAIA事務局） ／ 内容はシステムの実装に基づく', ''],
+    ['使い方_詳細（文章版）', '社外秘 / Confidential'],
+    ['更新日: ' + MANUAL_UPDATED + ' ／ 対象: 運営担当者（はてなベース・MAIA事務局） ／ 内容はシステムの実装に基づく ／ 画面つきの概要は「' + SLIDE_MANUAL_SHEET + '」タブ', ''],
     ['項目', '説明']
   ];
   const kinds = ['title', 'meta', 'header'];
@@ -126,7 +209,8 @@ function manualEntries() {
 
     // ---------------------------------------------------------------
     ['2. タブの役割'],
-    [MANUAL_SHEET, 'この説明書。作り直すと内容がリセットされるため、ここには追記しないでください。'],
+    [SLIDE_MANUAL_SHEET, '画面のスクリーンショットつきの説明書（スライド版）。作り直すと内容がリセットされるため、ここには追記しないでください。'],
+    [MANUAL_SHEET, 'この説明書（文章版）。細かい仕様やトラブルの対処はこちらに書いています。作り直すと内容がリセットされるため、ここには追記しないでください。'],
     [tokenSheet, '修了認定テストの受験者台帳（1人1行）。受験者の追加・トークン発行・URL生成・案内メール送信をここで行います。'],
     [resultSheet, '修了認定テストの受験履歴。受験1回ごとに1行が自動で追加されます。手入力は不要です。'],
     [scTokenSheet, '簿記3級スキルチェックの受験者台帳（1人1行）。使い方は「' + tokenSheet + '」と同じです。'],
@@ -212,7 +296,7 @@ function manualEntries() {
       + '2. URL が空の行があれば、先にURLを生成する（4章）\n'
       + '3. 「' + tokenSheet + '」（スキルチェックは「' + scTokenSheet + '」）を開き、送りたい受験者の行を選択する。行内のどのセルを選んでもかまいません。複数行の範囲選択や Cmd（Windows は Ctrl）＋クリックの飛び飛びの選択もできます。1行目（見出し）は対象外です\n'
       + '4. メニュー「テスト管理 > 選択行に案内メールを送信する」（スキルチェックは「スキルチェック管理 > 選択行に案内メールを送信する」）を実行する\n'
-      + '5. 確認画面で、送信件数・送信元・再送信の件数・宛先（先頭' + MAIL_LIST_PREVIEW_LIMIT + '件まで表示）・スキップされる行を確認し、「はい」で送信する。「いいえ」なら何も送りません\n'
+      + '5. 確認画面で、送信件数・送信元・再送信の件数・宛先（先頭' + MAIL_LIST_PREVIEW_LIMIT + '件まで表示）・スキップされる行を確認し、「OK」で送信する。「いいえ」なら何も送りません\n'
       + '6. 「成功N件 / 失敗M件 / スキップK件」の結果が表示され、送信に成功した行の mail_sent に送信日時が入ります'],
     ['スキップされる行',
       '次の行は送信されず、確認画面と結果に理由つきで表示されます。mail_sent も変わりません。\n'

@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>使い方ガイド</title>
+<style>
+@font-face{font-family:ZK;src:local('Zen Kaku Gothic New'),local('ZenKakuGothicNew-Regular');font-weight:400}
+@font-face{font-family:ZK;src:local('Zen Kaku Gothic New Bold'),local('ZenKakuGothicNew-Bold');font-weight:700}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#888;font-family:ZK,'Zen Kaku Gothic New','Hiragino Sans',sans-serif;color:#2A5772}
+.slide{width:1280px;height:720px;background:#fff;position:relative;overflow:hidden;margin:0 auto 24px}
+body.one .slide{display:none;margin:0}
+body.one .slide.on{display:block}
+body.one{background:#fff}
+.hd{position:absolute;left:57px;top:30px;right:200px}
+.label{font-size:12.5px;letter-spacing:.18em;color:#8BA3B2;font-weight:700}
+.rule{height:2px;background:#8BA3B2;margin:6px 0 10px;width:1000px}
+.rule i{display:block;height:2px;width:40%;background:#39BDD7}
+h1{font-size:30px;color:#0A2846;font-weight:700;letter-spacing:.06em}
+.logo{position:absolute;right:48px;top:26px;height:34px}
+.body{position:absolute;left:57px;right:57px;top:118px;bottom:46px;display:flex;flex-direction:column;justify-content:center}
+.ft{position:absolute;left:57px;right:57px;bottom:16px;font-size:11.5px;color:#5E7893;display:flex;gap:18px}
+.ft span:first-child{flex:1}
+.note{font-size:16px;margin-top:12px;line-height:1.5}
+.note.s{font-size:14.5px;margin-top:0}
+.note.warn{border-left:4px solid #E8892D;padding-left:10px}
+.n{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#E0322B;color:#fff;font-weight:700;font-size:15px;flex:none}
+/* screenshot */
+.shot{position:relative;flex:none}
+.clip{position:absolute;inset:0;overflow:hidden;border:1px solid #C7D0DA;border-radius:4px;background:#fff}
+.shot img{position:absolute;max-width:none}
+.mk{position:absolute;border:3px solid #E0322B;border-radius:3px}
+.badge{position:absolute;background:#E0322B;color:#fff;font-weight:700;font-size:15px;min-width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;padding:0 7px;white-space:nowrap}
+.badge.btop{left:-3px;top:-31px;border-radius:4px}
+.badge.btl{left:-14px;top:-15px}.badge.btr{right:-10px;top:-16px}
+.badge.bl{left:-16px;top:50%;margin-top:-13px}.badge.br{right:-16px;top:50%;margin-top:-13px}
+/* cover */
+.cover .bg{position:absolute;inset:0;width:1280px;height:720px}
+.cover .to{position:absolute;left:45px;top:300px;font-size:21px;font-weight:700;color:#0A2846;letter-spacing:.12em}
+.cover .ttl{position:absolute;left:45px;top:345px;font-size:37px;font-weight:700;color:#0A2846;line-height:1.45;letter-spacing:.06em}
+.cover .co{position:absolute;left:76px;top:470px;font-size:15px;font-weight:700;color:#0A2846;letter-spacing:.1em}
+.cover .stamp{position:absolute;right:19px;bottom:58px;border:1.5px solid #fff;color:#fff;font-weight:700;font-size:17px;padding:5px 12px}
+.cover .copy{position:absolute;right:19px;bottom:26px;color:#fff;font-size:12px}
+/* flow */
+.flow{display:flex;align-items:stretch;gap:6px;margin-top:6px}
+.card{flex:1;background:#EDF1F6;border-radius:6px;padding:12px 12px 14px;position:relative}
+.card.auto{background:#E2F5F9}
+.card.last{background:#0A2846;color:#fff}
+.card .no{font-size:22px;font-weight:700;color:#39BDD7}
+.card .tag{position:absolute;right:10px;top:14px;font-size:12px;border:1px solid #8BA3B2;border-radius:10px;padding:1px 8px}
+.card.last .tag{border-color:#fff}
+.card .t{font-size:18px;font-weight:700;color:#0A2846;margin:6px 0 6px}
+.card.last .t{color:#fff}
+.card .d{font-size:14.5px;line-height:1.5}
+.arr{color:#39BDD7;align-self:center;font-size:16px}
+table.cmp{width:100%;border-collapse:collapse;margin-top:22px;font-size:16px}
+.cmp th{background:#2A5772;color:#fff;padding:7px 12px;text-align:left;font-weight:700}
+.cmp th:first-child{background:#fff}
+.cmp td{padding:7px 12px;border-bottom:1px solid #C7D0DA}
+.cmp td:first-child{font-weight:700;color:#0A2846;width:150px;background:#EDF1F6}
+/* tabs */
+.tabs{display:flex;flex-direction:column;gap:7px}
+.trow{display:flex;align-items:center;gap:18px}
+.tab{width:300px;padding:9px 16px;border-radius:8px 8px 0 0;font-weight:700;font-size:17px;border-bottom:3px solid}
+.tab.main{background:#fff;border:1.5px solid #0A2846;border-bottom-width:3px;color:#0A2846}
+.tab.auto{background:#E2F5F9;border-color:#39BDD7;color:#0A2846}
+.tab.guide{background:#EDF1F6;border-color:#8BA3B2;color:#2A5772}
+.tdesc{font-size:17px}
+.legend{display:flex;gap:26px;font-size:14.5px;margin-top:16px}
+.sw{display:inline-block;width:16px;height:16px;vertical-align:-2px;margin-right:6px;border:1.5px solid}
+.sw.main{border-color:#0A2846}.sw.auto{background:#E2F5F9;border-color:#39BDD7}.sw.guide{background:#EDF1F6;border-color:#8BA3B2}
+/* two columns menus */
+.two{display:flex;gap:40px}
+.col{flex:1}
+h2{font-size:19px;color:#0A2846;margin-bottom:10px}
+h2 small{font-size:14px;color:#8BA3B2;margin-left:10px;font-weight:400}
+ol.nl{list-style:none;margin-top:14px;display:grid;gap:6px}
+ol.nl li{display:flex;align-items:center;gap:10px;font-size:16px}
+ol.nl em{font-style:normal;font-size:12.5px;color:#fff;background:#8BA3B2;border-radius:9px;padding:1px 8px}
+/* split layout */
+.split{display:flex;gap:34px;align-items:flex-start}
+.split.r{flex-direction:row}
+.steps{flex:1;display:flex;flex-direction:column;gap:13px}
+.shots{display:flex;flex-direction:column;gap:16px;flex:none}
+.st{display:flex;gap:12px;align-items:flex-start}
+.st b{font-size:17px;color:#0A2846}
+.st p{font-size:15px;line-height:1.5;margin-top:2px}
+.pre{background:#E2F5F9;padding:10px 14px;border-radius:6px;font-size:15px;line-height:1.5}
+.pre b{color:#0A2846;margin-right:6px}
+.tips{display:flex;gap:12px;margin-top:18px}
+.tips>div{flex:1;background:#EDF1F6;border-radius:6px;padding:12px 16px;font-size:15px;line-height:1.55}
+.tips b{display:block;color:#0A2846;font-size:15.5px;margin-bottom:2px}
+.tips.v{flex-direction:column;margin-top:16px}
+.coltbl{display:flex;flex-direction:column;gap:10px;margin-top:20px;font-size:16px;line-height:1.55}
+.coltbl b{display:inline-block;width:64px;text-align:center;border-radius:4px;color:#fff;margin-right:10px;font-size:14px;padding:1px 0}
+.coltbl b.in{background:#E0322B}.coltbl b.au{background:#8BA3B2}
+/* cards3 */
+.cards3{display:flex;gap:18px}
+.c3{flex:1;background:#EDF1F6;border-radius:8px;padding:18px 20px;border-top:5px solid #39BDD7}
+.c3.em{border-top-color:#E8892D}
+.c3 h3{font-size:20px;color:#0A2846;margin-bottom:10px}
+.c3 ul{padding-left:20px;font-size:16px;line-height:1.55;margin-bottom:10px}
+.c3 p{font-size:15px;line-height:1.55;border-top:1px solid #C7D0DA;padding-top:10px}
+/* level */
+.lv{display:flex;gap:16px;margin-top:26px}
+.lvc{flex:1;background:#EDF1F6;border-radius:8px;padding:22px 20px;display:grid;grid-template-columns:58px 1fr;grid-template-rows:auto auto;column-gap:10px}
+.lvc span{grid-row:1/3;width:48px;height:48px;border-radius:50%;background:#0A2846;color:#fff;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.lvc.b span{background:#2A5772}.lvc.c span{background:#8BA3B2}
+.lvc b{font-size:20px;color:#0A2846}.lvc p{font-size:16.5px}
+/* trouble */
+table.tr{width:100%;border-collapse:collapse;font-size:14.5px}
+.tr th{background:#2A5772;color:#fff;text-align:left;padding:6px 12px}
+.tr td{padding:6px 12px;border-bottom:1px solid #C7D0DA;line-height:1.45;vertical-align:top}
+.tr td:first-child{width:46%;font-weight:700;color:#0A2846}
+.tr tr:nth-child(odd) td{background:#F7F9FB}
+.goto{margin-top:14px;background:#0A2846;color:#fff;border-radius:6px;padding:10px 16px;font-size:16px}
+/* ng */
+.ngs{display:grid;grid-template-columns:1fr 1fr;gap:18px 28px}
+.ng{display:flex;gap:16px;background:#EDF1F6;border-radius:8px;padding:22px 20px}
+.x{width:34px;height:34px;border-radius:50%;background:#E0322B;color:#fff;font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;flex:none}
+.ng b{font-size:20px;color:#0A2846}.ng p{font-size:16.5px;line-height:1.55;margin-top:6px}
+</style></head>
+<body>
+
+<section class="slide cover" id="s1">
+  <img class="bg" src="img/cover_bg.png" alt="">
+  <div class="to">運営担当者向け（はてなベース・MAIA事務局）</div>
+  <div class="ttl">freee会計 修了認定テスト管理シート<br>使い方ガイド</div>
+  <div class="co">はてなベース株式会社</div>
+  <div class="stamp">社外秘 / Confidential</div>
+  <div class="copy">©2026 Hatenabase,inc.</div>
+</section>
+
+<section class="slide" id="s2">
+  <div class="hd"><div class="label">OVERVIEW</div><div class="rule"><i></i></div><h1>全体の流れ</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body"><div class="flow"><div class="card"><div class="no">01</div><div class="tag">手入力</div><div class="t">受験者を入力</div><div class="d">「トークン管理」に<br>name・org・email</div></div><div class="arr">▶</div><div class="card"><div class="no">02</div><div class="tag">メニュー</div><div class="t">トークンを発行</div><div class="d">メニュー<br>「トークンを発行する」</div></div><div class="arr">▶</div><div class="card"><div class="no">03</div><div class="tag">メニュー</div><div class="t">受験用URLを生成</div><div class="d">メニュー<br>「テストURLを生成する」</div></div><div class="arr">▶</div><div class="card"><div class="no">04</div><div class="tag">メニュー</div><div class="t">案内メールを送信</div><div class="d">行を選んで<br>「選択行に案内メールを送信する」</div></div><div class="arr">▶</div><div class="card auto"><div class="no">05</div><div class="tag">自動</div><div class="t">受験者が受験</div><div class="d">結果シートに1行追加<br>受験回数・点数も更新</div></div><div class="arr">▶</div><div class="card last"><div class="no">06</div><div class="tag">確認</div><div class="t">結果を確認</div><div class="d">必要なら受験回数の<br>上限を個別に増やす</div></div></div>
+<table class="cmp">
+  <tr><th></th><th>修了認定テスト</th><th>簿記3級スキルチェック</th></tr>
+  <tr><td>メニュー</td><td>「テスト管理」</td><td>「スキルチェック管理」</td></tr>
+  <tr><td>出題・判定</td><td>50問・正答率75%以上で合格</td><td>20問・合否なし（理解度を3段階で表示）</td></tr>
+  <tr><td>受験回数</td><td>上限あり（既定2回・個別に変更可）</td><td>制限なし</td></tr>
+  <tr><td>使うタブ</td><td>トークン管理 ／ テスト結果</td><td>スキルチェック_トークン管理 ／ スキルチェック_結果</td></tr>
+</table>
+<p class="note">2つのテストはシート・トークン・URLが別々です。修了認定テストのURLはスキルチェックでは使えません（逆も同じ）。</p></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">2 / 15</span></div>
+</section>
+
+<section class="slide" id="s3">
+  <div class="hd"><div class="label">TABS</div><div class="rule"><i></i></div><h1>タブの役割</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body"><div class="tabs"><div class="trow"><div class="tab guide">使い方</div><div class="tdesc">このスライド版の説明書</div></div><div class="trow"><div class="tab guide">使い方_詳細</div><div class="tdesc">文章版の説明書。困ったとき・細かい仕様はここ</div></div><div class="trow"><div class="tab main">トークン管理</div><div class="tdesc">修了認定テストの受験者台帳（1人1行）。追加・発行・URL・メール送信をここで</div></div><div class="trow"><div class="tab auto">テスト結果</div><div class="tdesc">修了認定テストの受験履歴。受験1回ごとに1行、自動で追加</div></div><div class="trow"><div class="tab main">スキルチェック_トークン管理</div><div class="tdesc">スキルチェックの受験者台帳。使い方は「トークン管理」と同じ</div></div><div class="trow"><div class="tab auto">スキルチェック_結果</div><div class="tdesc">スキルチェックの受験履歴。自動で追加</div></div><div class="trow"><div class="tab main">メール文面</div><div class="tdesc">案内メールの件名・本文・送信者名。2つのテストで共用</div></div></div><div class="legend"><span><i class="sw main"></i>運営担当者が入力・操作する</span><span><i class="sw auto"></i>システムが自動で書く（手入力しない）</span><span><i class="sw guide"></i>説明書（作り直すと内容がリセットされるので追記しない）</span></div><p class="note">システムが読み書きするのは上の表のタブだけです。シート名は変えないでください。</p></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">3 / 15</span></div>
+</section>
+
+<section class="slide" id="s4">
+  <div class="hd"><div class="label">MENU</div><div class="rule"><i></i></div><h1>操作はメニュー2つから</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body">
+<div class="two">
+  <div class="col"><h2>メニュー「テスト管理」<small>修了認定テスト用</small></h2><div class="shot" style="width:550px;height:276px;"><div class="clip"><img src="img/s_menu_test.png" style="left:-814px;top:-33px;width:1364px;height:309px"></div><div class="mk" style="left:134px;top:13px;width:106px;height:28px"></div><div class="mk" style="left:139px;top:54px;width:387px;height:26px"><span class="badge bl">1</span></div><div class="mk" style="left:139px;top:94px;width:387px;height:26px"><span class="badge bl">2</span></div><div class="mk" style="left:139px;top:133px;width:387px;height:26px"><span class="badge bl">3</span></div><div class="mk" style="left:139px;top:194px;width:387px;height:26px"><span class="badge bl">4</span></div><div class="mk" style="left:139px;top:233px;width:387px;height:26px"><span class="badge bl">5</span></div></div>
+    <ol class="nl">
+      <li><span class="n">1</span>トークンを発行する</li><li><span class="n">2</span>テストURLを生成する</li><li><span class="n">3</span>管理者プレビューURLを生成する</li>
+      <li><span class="n">4</span>選択行に案内メールを送信する</li><li><span class="n">5</span>メール文面シートを作成する<em>初回のみ</em></li>
+    </ol></div>
+  <div class="col"><h2>メニュー「スキルチェック管理」<small>スキルチェック用</small></h2><div class="shot" style="width:550px;height:276px;"><div class="clip"><img src="img/s_menu_skill.png" style="left:-814px;top:-33px;width:1364px;height:314px"></div><div class="mk" style="left:133px;top:54px;width:387px;height:26px"><span class="badge bl">1</span></div><div class="mk" style="left:133px;top:94px;width:387px;height:26px"><span class="badge bl">2</span></div><div class="mk" style="left:133px;top:133px;width:387px;height:26px"><span class="badge bl">3</span></div><div class="mk" style="left:133px;top:173px;width:387px;height:26px"><span class="badge bl">4</span></div><div class="mk" style="left:133px;top:233px;width:387px;height:26px"><span class="badge bl">5</span></div></div>
+    <ol class="nl">
+      <li><span class="n">1</span>トークンを発行する</li><li><span class="n">2</span>スキルチェックURLを生成する</li><li><span class="n">3</span>管理者プレビューURLを生成する</li>
+      <li><span class="n">4</span>結果シートの見出しを作成する<em>初回のみ</em></li><li><span class="n">5</span>選択行に案内メールを送信する</li>
+    </ol></div>
+</div>
+<p class="note">メニューはスプレッドシートを開くと画面上部に追加されます。画面が狭いと「…」の中に隠れることがあります。</p></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">4 / 15</span></div>
+</section>
+
+<section class="slide" id="s5">
+  <div class="hd"><div class="label">TOKEN SHEET</div><div class="rule"><i></i></div><h1>「トークン管理」の列　赤枠が手入力する列</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body"><div class="shot" style="width:1181px;height:99px;margin:30px 0 44px"><div class="clip"><img src="img/s_token_select.png" style="left:0px;top:-25px;width:1181px;height:124px"></div><div class="mk" style="left:135px;top:21px;width:187px;height:78px"><span class="badge btop">name・org</span></div></div><div class="shot" style="width:902px;height:99px;"><div class="clip"><img src="img/s_token_right.png" style="left:0px;top:0px;width:902px;height:99px"></div><div class="mk" style="left:583px;top:21px;width:185px;height:78px"><span class="badge btop">max_attempts・email</span></div></div>
+<div class="coltbl">
+  <div><b class="in">手入力</b> name（受験者名）／ org（所属）／ email（宛先・1セル1アドレス）／ max_attempts（受験回数の上限・任意）／ status を disabled にする（URLを止める）</div>
+  <div><b class="au">自動</b> token ／ status ／ created ／ URL ／ attempts（受験回数）／ latest_pct ／ latest_result ／ last_tested ／ admin_URL ／ mail_sent</div>
+</div>
+<p class="note warn">A〜E列（token / name / org / status / created）は位置で読み書きしています。列の挿入・並べ替えはしないでください。F列以降は見出し名で探すので、足りない列は自動で追加されます。</p></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">5 / 15</span></div>
+</section>
+
+<section class="slide" id="s6">
+  <div class="hd"><div class="label">STEP 1</div><div class="rule"><i></i></div><h1>受験者の追加〜受験用URLの発行</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body">
+<div class="split">
+  <div class="steps">
+    <div class="st"><span class="n">1</span><div><b>受験者を入力</b><p>「トークン管理」の最終行の下に name と org を入力。メールで送るなら email も。</p></div></div>
+    <div class="st"><span class="n">2</span><div><b>テスト管理 &gt; トークンを発行する</b><p>name があり token が空の行にだけ、token・status（active）・created が入ります。</p></div></div>
+    <div class="st"><span class="n">3</span><div><b>テスト管理 &gt; テストURLを生成する</b><p>token がある行の URL 列に受験用URLが入ります。</p></div></div>
+    <div class="st"><span class="n">4</span><div><b>案内メールを送る</b><p>次のページの手順で送ります。URL列のURLを個別に送ってもかまいません。</p></div></div>
+  </div>
+  <div class="shots"><div class="shot" style="width:602px;height:104px;"><div class="clip"><img src="img/s_token_select.png" style="left:0px;top:-26px;width:1238px;height:130px"></div><div class="mk" style="left:142px;top:22px;width:196px;height:82px"><span class="badge bl">1</span></div></div><div class="shot" style="width:344px;height:103px;"><div class="clip"><img src="img/s_menu_test.png" style="left:-722px;top:-52px;width:1066px;height:242px"></div><div class="mk" style="left:22px;top:16px;width:303px;height:21px"><span class="badge br">2</span></div><div class="mk" style="left:22px;top:47px;width:303px;height:21px"><span class="badge br">3</span></div></div></div>
+</div>
+<div class="tips">
+  <div><b>スキルチェック</b>「スキルチェック_トークン管理」で同じ手順。メニューは「スキルチェック管理」。初回だけ「結果シートの見出しを作成する」を実行</div>
+  <div><b>受験を止めたい</b>その行の status を disabled に書き換える（再開は active に戻す）</div>
+  <div><b>画面を確認したい</b>「管理者プレビューURLを生成する」→ admin_URL。結果は記録されず回数制限もかからない</div>
+</div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">6 / 15</span></div>
+</section>
+
+<section class="slide" id="s7">
+  <div class="hd"><div class="label">STEP 2</div><div class="rule"><i></i></div><h1>案内メールの準備　「メール文面」タブ</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body">
+<div class="split r">
+  <div class="shots"><div class="shot" style="width:749px;height:406px;"><div class="clip"><img src="img/s_mail_sheet.png" style="left:0px;top:-31px;width:749px;height:515px"></div><div class="mk" style="left:41px;top:31px;width:141px;height:372px"><span class="badge bl">1</span></div><div class="mk" style="left:182px;top:50px;width:234px;height:22px"><span class="badge br">2</span></div><div class="mk" style="left:182px;top:94px;width:86px;height:28px"><span class="badge br">3</span></div><div class="mk" style="left:182px;top:192px;width:62px;height:16px"><span class="badge br">3</span></div></div></div>
+  <div class="steps">
+    <div class="pre"><b>初回のみ</b> メニュー「テスト管理 &gt; メール文面シートを作成する」で作ります。既にあるときは上書きせずに止まります。</div>
+    <div class="st"><span class="n">1</span><div><b>A列 = キー、B列 = 値</b><p>送信元アドレス ／ 送信者名 ／ 修了認定_件名 ／ 修了認定_本文 ／ スキルチェック_件名 ／ スキルチェック_本文</p></div></div>
+    <div class="st"><span class="n">2</span><div><b>送信者名・送信元アドレス</b><p>送信者名が空欄なら「MAIA 事務局」。送信元アドレスが空欄なら、メニューを実行した人のアドレスで送ります。</p></div></div>
+    <div class="st"><span class="n">3</span><div><b>差し込み</b><p>{{name}}・{{org}}・{{url}} が受験者ごとに置き換わります。これ以外の {{…}} はそのまま送られます。</p></div></div>
+    <p class="note s">本文はプレーンテキスト。件名・本文が空欄だと送れません。別アドレスから送るときは、実行する人のGmailに登録が必要です（設定 &gt; アカウント &gt; 他のメールアドレスを追加）。</p>
+  </div>
+</div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">7 / 15</span></div>
+</section>
+
+<section class="slide" id="s8">
+  <div class="hd"><div class="label">STEP 3</div><div class="rule"><i></i></div><h1>案内メールを送る</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body">
+<div class="split">
+  <div class="steps">
+    <div class="st"><span class="n">1</span><div><b>宛先とURLを確認</b><p>送る相手の email を入力。URL が空の行は先にURLを生成しておきます。</p></div></div>
+    <div class="st"><span class="n">2</span><div><b>送りたい受験者の行を選ぶ</b><p>行のどのセルを選んでもOK。範囲選択や Cmd（Windows は Ctrl）＋クリックで複数行を選べます。1行目（見出し）は対象外です。</p></div></div>
+    <div class="st"><span class="n">3</span><div><b>テスト管理 &gt; 選択行に案内メールを送信する</b><p>スキルチェックは「スキルチェック_トークン管理」で「スキルチェック管理」の同じ項目を使います。</p></div></div>
+    <div class="st"><span class="n">4</span><div><b>確認画面で内容を見て「OK」</b><p>次のページで説明します。</p></div></div>
+  </div>
+  <div class="shots"><div class="shot" style="width:665px;height:115px;"><div class="clip"><img src="img/s_token_select.png" style="left:0px;top:-28px;width:1368px;height:143px"></div><div class="mk" style="left:0px;top:48px;width:48px;height:67px"><span class="badge bl">2</span></div></div><div class="shot" style="width:440px;height:276px;"><div class="clip"><img src="img/s_menu_test.png" style="left:-924px;top:-33px;width:1364px;height:309px"></div><div class="mk" style="left:29px;top:194px;width:387px;height:26px"><span class="badge br">3</span></div></div></div>
+</div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">8 / 15</span></div>
+</section>
+
+<section class="slide" id="s9">
+  <div class="hd"><div class="label">STEP 3</div><div class="rule"><i></i></div><h1>確認画面の見方</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body">
+<div class="split r">
+  <div class="shots dlg"><div class="shot" style="width:530px;height:454px;"><div class="clip"><img src="img/s_confirm_dialog.png" style="left:0px;top:0px;width:530px;height:454px"></div><div class="mk" style="left:25px;top:80px;width:380px;height:50px"><span class="badge bl">1</span></div><div class="mk" style="left:25px;top:130px;width:300px;height:22px"><span class="badge bl">2</span></div><div class="mk" style="left:25px;top:175px;width:480px;height:45px"><span class="badge bl">3</span></div><div class="mk" style="left:25px;top:242px;width:330px;height:70px"><span class="badge bl">4</span></div><div class="mk" style="left:350px;top:380px;width:168px;height:60px"><span class="badge br">5</span></div></div></div>
+  <div class="steps">
+    <div class="st"><span class="n">1</span><div><b>送信件数と送信元</b><p>何件送るか、どの名前・アドレスから送るか。</p></div></div>
+    <div class="st"><span class="n">2</span><div><b>再送信の件数</b><p>mail_sent に日時がある行（前に送った行）の数。</p></div></div>
+    <div class="st"><span class="n">3</span><div><b>宛先</b><p>行番号・名前・アドレス（先頭20件まで）。再送信の行には「（再送信）」。</p></div></div>
+    <div class="st"><span class="n">4</span><div><b>スキップされる行</b><p>送らない行と理由（この例は email が空欄の2行）。</p></div></div>
+    <div class="st"><span class="n">5</span><div><b>「OK」で送信／「いいえ」で中止</b><p>送信後に「成功N件 / 失敗M件 / スキップK件」が出て、成功した行の mail_sent に送信日時が入ります。「いいえ」なら1通も送りません。</p></div></div>
+  </div>
+</div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">9 / 15</span></div>
+</section>
+
+<section class="slide" id="s10">
+  <div class="hd"><div class="label">STEP 3</div><div class="rule"><i></i></div><h1>スキップ・再送信・送信上限</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body">
+<div class="cards3">
+  <div class="c3"><h3>スキップされる行</h3>
+    <ul><li>email が空欄</li><li>メールアドレスの形式が不正（1セルに複数のアドレスを入れた場合も）</li><li>URL が空欄（URL未生成）</li></ul>
+    <p>確認画面と結果に理由つきで表示され、mail_sent は変わりません。name・email・URL がすべて空の行は表示せずに無視します。</p></div>
+  <div class="c3 em"><h3>再送信に注意</h3>
+    <ul><li>mail_sent に日時が入っている行も送信対象になる（スキップされない）</li><li>確認画面の宛先に「（再送信）」と付く</li><li>送ると mail_sent は今回の日時で上書き</li></ul>
+    <p>二重送信を避けたいときは、行を選ぶ前に mail_sent 列を確認します。</p></div>
+  <div class="c3"><h3>1日の送信上限</h3>
+    <ul><li>実行した人のGoogleアカウントで1日100通または1,500通（アカウントの種類による）</li><li>残りが足りないときは1通も送らずに中止</li><li>一部の宛先で失敗しても、残りへの送信は続ける</li></ul>
+    <p>翌日に実行するか、選ぶ行を分けて送ります。</p></div>
+</div>
+<p class="note">初めて送信する人は、最初の実行時にGoogleの承認画面が出ます。Gmailでの送信を許可してください。</p></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">10 / 15</span></div>
+</section>
+
+<section class="slide" id="s11">
+  <div class="hd"><div class="label">RESULT</div><div class="rule"><i></i></div><h1>結果の見方（修了認定テスト）</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body">
+<div class="split w">
+  <div class="shots"><div class="shot" style="width:705px;height:104px;margin-bottom:14px"><div class="clip"><img src="img/s_token_right.png" style="left:0px;top:0px;width:946px;height:104px"></div><div class="mk" style="left:122px;top:22px;width:97px;height:82px"><span class="badge btl">1</span></div><div class="mk" style="left:317px;top:22px;width:293px;height:82px"><span class="badge btl">2</span></div></div><div class="shot" style="width:924px;height:125px;"><div class="clip"><img src="img/s_result_sheet.png" style="left:0px;top:0px;width:924px;height:125px"></div><div class="mk" style="left:0px;top:22px;width:924px;height:21px"><span class="badge bl">3</span></div></div></div>
+  <div class="steps">
+    <div class="st"><span class="n">1</span><div><b>attempts = 受験回数</b><p>受験結果が届くたびに1増えます。</p></div></div>
+    <div class="st"><span class="n">2</span><div><b>最新の結果</b><p>latest_pct（正答率）・latest_result（合格／不合格）・last_tested（受験日時）。</p></div></div>
+    <div class="st"><span class="n">3</span><div><b>「テスト結果」タブ＝全履歴</b><p>受験1回ごとに1行。正解数・出題数・正答率・合否・所要時間。</p></div></div>
+  </div>
+</div>
+<div class="tips">
+  <div><b>合格ライン</b>100問から50問を出題（重要15問は毎回）。正答率75%以上（50問中38問以上）で合格</div>
+  <div><b>上書きに注意</b>status と latest_result は最新の受験で上書き。合格後に再受験して不合格だと「受験済」に戻る。過去の合否は「テスト結果」で見る</div>
+</div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">11 / 15</span></div>
+</section>
+
+<section class="slide" id="s12">
+  <div class="hd"><div class="label">RESULT</div><div class="rule"><i></i></div><h1>受験回数の上限を個別に増やす</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body">
+<div class="split">
+  <div class="steps">
+    <div class="pre"><b>既定は1人2回まで</b> 上限に達すると、受験者がURLを開いたときに「受験可能回数に達しています」と表示され、開始できません。</div>
+    <div class="st"><span class="n">1</span><div><b>max_attempts 列を用意</b><p>無ければ1行目の空いている列に見出し「max_attempts」を入力します。</p></div></div>
+    <div class="st"><span class="n">2</span><div><b>対象の行に上限回数を入力</b><p>例: 3 と入れると3回まで受験できます。</p></div></div>
+    <div class="st"><span class="n">3</span><div><b>受験者がURLを開き直すと反映</b><p>空欄・0以下・数字以外は既定の2回として扱われます。</p></div></div>
+  </div>
+  <div class="shots"><div class="shot" style="width:524px;height:139px;"><div class="clip"><img src="img/s_token_right.png" style="left:-685px;top:0px;width:1265px;height:139px"></div><div class="mk" style="left:132px;top:30px;width:129px;height:109px"></div></div>
+    <div class="tips v">
+      <div><b>再受験</b>上限の範囲内なら同じURLで受けられる（不合格でも合格済でも）</div>
+      <div><b>途中で閉じた</b>24時間以内なら同じURLから続きを再開できる</div>
+      <div><b>送信に失敗</b>受験者の画面の「再送信」ボタンで送り直せる（二重には記録されない）</div>
+    </div>
+  </div>
+</div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">12 / 15</span></div>
+</section>
+
+<section class="slide" id="s13">
+  <div class="hd"><div class="label">RESULT</div><div class="rule"><i></i></div><h1>結果の見方（簿記3級スキルチェック）　赤枠が理解度と単元別の列</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body"><div class="shot" style="width:1181px;height:61px;"><div class="clip"><img src="img/s_skill_result.png" style="left:0px;top:0px;width:1181px;height:61px"></div><div class="mk" style="left:695px;top:21px;width:186px;height:20px"></div><div class="mk" style="left:974px;top:21px;width:207px;height:20px"></div></div>
+<div class="lv">
+  <div class="lvc a"><span>A</span><b>理解度: 十分</b><p>正答率80%以上</p></div>
+  <div class="lvc b"><span>B</span><b>理解度: あと一歩</b><p>60〜79%</p></div>
+  <div class="lvc c"><span>C</span><b>理解度: 復習をおすすめします</b><p>60%未満</p></div>
+</div>
+<div class="tips">
+  <div><b>出題</b>40問の問題から20問を、7つの単元ごとに決まった数ずつ出題。合否はなし</div>
+  <div><b>記録</b>「スキルチェック_結果」に level（A/B/C）・level_label と単元ごとの「単元名_正答」「単元名_出題」列。台帳には latest_level</div>
+  <div><b>回数</b>制限なし（attempts は記録だけ）。status は active / 受験済 / disabled のみ</div>
+</div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">13 / 15</span></div>
+</section>
+
+<section class="slide" id="s14">
+  <div class="hd"><div class="label">TROUBLE</div><div class="rule"><i></i></div><h1>困ったとき</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body"><table class="tr"><tr><th>表示・症状</th><th>対処</th></tr><tr><td>「送信元アドレス「…」はこのアカウントで使えません。」</td><td>実行者のGmailにそのアドレスが未登録。登録するか、送信元アドレスを空欄にする（1通も送っていない）</td></tr><tr><td>「シート「トークン管理」を開き、…選択してから実行してください。」</td><td>別のタブで実行している。対象タブを開き、行を選んでから実行し直す</td></tr><tr><td>「送信できる行がありません。」</td><td>選んだ行が全部スキップ対象。表示された理由（email が空欄 など）を直す</td></tr><tr><td>「本日の残り送信可能数が不足しています」</td><td>1日の上限に達した。翌日に実行するか、選ぶ行を減らす（1通も送っていない）</td></tr><tr><td>「0件のトークンを発行しました。」</td><td>name が空、または token が既に入っている行には発行しない</td></tr><tr><td>受験者から「このテストURLは無効か、既に使用済みです」</td><td>status が disabled でないか、URLの token がシートと一致するか、2つのテストのURLを取り違えていないか</td></tr><tr><td>受験者から「受験可能回数に達しています」</td><td>上限に到達。追加で受けさせるなら max_attempts を設定</td></tr><tr><td>日時が9時間ずれている</td><td>シートのタイムゾーンがGMTのため。created・last_tested・受験日時は日本時間の9時間前で表示（mail_sent は日本時間）</td></tr></table><div class="goto">ここにない表示や細かい仕様は、<b>「使い方_詳細」タブの「7. よくあるトラブルと対処」</b>を見てください。</div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">14 / 15</span></div>
+</section>
+
+<section class="slide" id="s15">
+  <div class="hd"><div class="label">DON'T</div><div class="rule"><i></i></div><h1>やってはいけないこと</h1></div>
+  <img class="logo" src="img/logo.png" alt="">
+  <div class="body"><div class="ngs"><div class="ng"><span class="x">✕</span><div><b>A〜E列の並べ替え・列の挿入</b><p>token / name / org / status / created は位置で読み書き。ずれると受験結果が別の列に書かれて壊れる</p></div></div><div class="ng"><span class="x">✕</span><div><b>1行目の見出し名の変更・列の削除</b><p>URL・attempts・email・mail_sent・max_attempts などは見出し名で探す。空の列が増えて記録が分かれたり、メールが送れなくなる</p></div></div><div class="ng"><span class="x">✕</span><div><b>token の書き換え・削除</b><p>配布済みのURLが使えなくなる。消して発行し直すと新しいURLになり、古いURLは無効</p></div></div><div class="ng"><span class="x">✕</span><div><b>シート名の変更</b><p>トークン管理・テスト結果・スキルチェック_トークン管理・スキルチェック_結果・メール文面は名前で探す</p></div></div><div class="ng"><span class="x">✕</span><div><b>結果シートの列の挿入・並べ替え</b><p>決まった列順で1行ずつ追記している。値が違う列に記録される</p></div></div><div class="ng"><span class="x">✕</span><div><b>メール文面のキー名変更・空行の挿入</b><p>キー名を変えると読まれない。キーの間の空行より下は読まれない（注記との間の空行は詰めない）</p></div></div></div></div>
+  <div class="ft"><span>©2026 Hatenabase,inc.</span><span class="conf">社外秘 / Confidential</span><span class="pg">15 / 15</span></div>
+</section>
+<script>
+var m=location.hash.match(/^#s(\d+)$/);
+if(m){document.body.classList.add('one');var e=document.getElementById('s'+m[1]);if(e)e.classList.add('on');}
+</script>
+</body></html>
