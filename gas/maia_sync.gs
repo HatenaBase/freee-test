@@ -13,6 +13,7 @@
 //   ⑤ Owlcast進捗は半手動: はてなベースが管理画面のレッスン受講履歴CSVを「Owlcast取込」タブに全件貼り付け、
 //      importOwlcastHistory()（手動実行専用・トリガーに載せない）で「Owlcast進捗」を作り直す。
 //      受講生と Owlcast 会員の対応は受講生マスタの「Owlcast会員ID」列（会員一覧CSVを「Owlcast会員取込」に貼って fillOwlcastMemberIds() で記入）
+//      取込が正常に終わると貼り付けタブの3行目以降を自動で消す（他コホートの氏名・メールアドレスを共有側に残さない。エラー時は残す）
 //
 // - 同期処理は元スプレッドシートを読み取るだけ。書き込むのは registerFromMaster() だけ
 // - 同期処理は「受講生マスタ」「Owlcast進捗」「Owlcast取込」「Owlcast会員取込」タブを書き換えない
@@ -240,7 +241,7 @@ function setupMaiaReadme_(ss) {
     ['注意', 'スキルチェック・認定試験・受講生一覧の3タブは同期のたびに全件置き換えます。手で書き込んだ内容は消えるため、メモは 受講生マスタ または Owlcast進捗 の備考列に書いてください。受講生マスタは同期では書き換えません。Owlcast進捗は取込のたびに作り直しますが、備考列は はてな側ID ごとに引き継ぎます'],
     ['運用の順番', '① 渡辺さん（MAIA）が受講生マスタに 氏名・自治体名・MAIA受講番号・MAIA管理ID・メールアドレスを入力（氏名・自治体名・メールアドレスは必須）\n② はてなベースが registerFromMaster を実行（はてな側ID を HB-001 からの通し番号で採番してマスタに記入し、受験URLを発行。試験システムの所属は自治体名になる）\n③ はてなベースが受験URLを送付\n④ 以降、スキルチェック・認定試験・受講生一覧は1時間ごとに自動同期。Owlcast進捗は週2回（月・木）、はてなベースが管理画面のCSVを貼り付けて集計（手順は下の「Owlcast取込の手順」）'],
     ['自治体の追加', '新しい自治体の受講生は、受講生マスタの空いている行に入力し、自治体名の列に自治体名を入れるだけです（ブックやタブの追加は不要）。プルダウンの候補にない名前もそのまま入力できます。\n候補に足すとき: 受講生マスタの自治体名の列（C列）を選び、メニューの「データ」→「データの入力規則」で既存のルール（プルダウン）を開き、「別のアイテムを追加」で自治体名を足して「完了」。足した候補は、はてなベースが書式を再設定しても残ります。\nはてな側IDは自治体をまたいだ通し番号のため、自治体ごとに番号は振り直しません。受講生一覧は見出し行のフィルタで自治体名を絞り込めます'],
-    ['Owlcast取込の手順', '（はてなベースが週2回・月曜と木曜に実施）\n① Owlcast管理画面の「学習状況」→「受講履歴」→「レッスン受講履歴」で全件をCSV出力する\n② このスプレッドシートの「Owlcast取込」タブで3行目以降をすべて削除し、A3セルにCSVを見出し行ごと貼り付ける（毎回全件を貼り替える。CSVをテキストのまま貼っても読み取れる）\n③ 試験システムのメニュー「MAIA共有進捗」→「Owlcast取込を集計する」を実行する（GASエディタからは importOwlcastHistory）。Owlcast進捗タブが作り直され、取得日に実行日時が入る\n受講生が増えたとき: 会員管理→会員一覧のCSVを「Owlcast会員取込」タブのA3に貼り、メニュー「Owlcast会員IDを受講生マスタに記入する」（fillOwlcastMemberIds）を実行する。メールアドレスで突合し、受講生マスタの Owlcast会員ID の空欄だけを埋める（突合できなかった人は実行結果に出るので手で入れる）']
+    ['Owlcast取込の手順', '（はてなベースが週2回・月曜と木曜に実施）\n① Owlcast管理画面の「学習状況」→「受講履歴」→「レッスン受講履歴」で全件をCSV出力する\n② このスプレッドシートの「Owlcast取込」タブで3行目以降をすべて削除し、A3セルにCSVを見出し行ごと貼り付ける（毎回全件を貼り替える。CSVをテキストのまま貼っても読み取れる）。貼り付けたデータは集計後に自動で消えます（他の受講生の個人情報を残さないため）\n③ 試験システムのメニュー「MAIA共有進捗」→「Owlcast取込を集計する」を実行する（GASエディタからは importOwlcastHistory）。Owlcast進捗タブが作り直され、取得日に実行日時が入る。正常に終わると貼り付けたデータは自動で消え、Owlcast取込タブの2行目に「最終取込: 日時（n行→m名）」が出る（エラーで止まったときは原因確認のため残る）\n受講生が増えたとき: 会員管理→会員一覧のCSVを「Owlcast会員取込」タブのA3に貼り、メニュー「Owlcast会員IDを受講生マスタに記入する」（fillOwlcastMemberIds）を実行する。メールアドレスで突合し、受講生マスタの Owlcast会員ID の空欄だけを埋める（突合できなかった人は実行結果に出るので手で入れる）。記入が終わると貼り付けたデータは自動で消える']
   ];
   const infoEnd = infoStart + info.length - 1; // 15
   const lastRow = Math.max(sh.getLastRow(), 1);
@@ -262,7 +263,7 @@ function setupMaiaReadme_(ss) {
     [MAIA_TAB_SKILL, '簿記3級スキルチェックの受験結果（受験ごとに1行、受講生ID・自治体名つき、単元別の正答数つき）', '自動（試験システムから同期）', '1時間ごと'],
     [MAIA_TAB_TEST, 'freee会計 修了認定テストの受験結果（受験ごとに1行、受講生ID・自治体名つき、合格ライン75%）', '自動（試験システムから同期）', '1時間ごと'],
     [MAIA_TAB_OWLCAST, 'Owlcast（LMS）の章別の学習進捗。1行1受講生（受講生マスタで Owlcast会員ID がある人をマスタの順に並べる）。各章は完了日、受講中は「中」、未着手は空欄。氏名・自治体名は受講生マスタから はてな側ID で引く。取込のたびに作り直すが、備考は引き継ぐ。取得日は取込の実行日時', '半手動（CSV貼り付け→自動集計）', '週2回（月・木）。LMS運営会社のAIアシスト（MCP連携）受理後に日次自動化'],
-    [MAIA_TAB_OWL_IMPORT + '\n' + MAIA_TAB_OWL_MEMBER, 'はてなベース用の貼り付け欄。Owlcast取込＝管理画面のレッスン受講履歴CSV（毎回全件を貼り替え）、Owlcast会員取込＝会員一覧CSV（受講生マスタの Owlcast会員ID を埋めるときだけ使う）。同期では消えない', '手動貼り付け（はてなベース）', 'Owlcast取込は週2回（月・木）／会員取込は受講生の追加時']
+    [MAIA_TAB_OWL_IMPORT + '\n' + MAIA_TAB_OWL_MEMBER, 'はてなベース用の貼り付け欄。Owlcast取込＝管理画面のレッスン受講履歴CSV（毎回全件を貼り替え）、Owlcast会員取込＝会員一覧CSV（受講生マスタの Owlcast会員ID を埋めるときだけ使う）。貼り付けたデータは集計後に自動で消えます（他の受講生の個人情報を残さないため）。エラーで止まったときは原因確認のため残る。各タブ2行目に最終取込の日時と件数が出る', '手動貼り付け（はてなベース）', 'Owlcast取込は週2回（月・木）／会員取込は受講生の追加時']
   ];
   if (rows.length + 1 >= infoStart) throw new Error('README の表が B' + infoStart + '（最終同期日時）に重なります');
   sh.getRange(2, 1, rows.length, 4).setValues(rows);
@@ -497,31 +498,65 @@ function maiaWriteOwlcast_(ss, sh, rows, title) {
   sh.setFrozenColumns(4);
 }
 
+// 貼り付けタブの 1行目タイトル・2行目説明（2行目の末尾に「最終取込: …」を付ける）
+const MAIA_PASTE_LAST_MARK = '  最終取込: ';
+const MAIA_PASTE_TEXTS = {};
+MAIA_PASTE_TEXTS[MAIA_TAB_OWL_IMPORT] = [
+  'Owlcast取込（レッスン受講履歴CSVの貼り付け欄・はてなベース用）  貼り付けたデータは集計後に自動で消えます（他の受講生の個人情報を残さないため）。集計結果は Owlcast進捗 タブに出ます',
+  '【貼り付け方】Owlcast管理画面「学習状況」→「受講履歴」→「レッスン受講履歴」で全件をCSV出力し、このタブの3行目以降をすべて削除してから A3 セルに CSV を見出し行ごと貼り付け（毎回全件を貼り替え）。そのあと試験システムのメニュー「MAIA共有進捗」→「Owlcast取込を集計する」を実行。正常に終わると3行目以降は自動で消えます（エラーのときは残ります）'
+];
+MAIA_PASTE_TEXTS[MAIA_TAB_OWL_MEMBER] = [
+  'Owlcast会員取込（会員一覧CSVの貼り付け欄・はてなベース用）  貼り付けたデータは集計後に自動で消えます（他の受講生の個人情報を残さないため）。受講生マスタの Owlcast会員ID を埋めるときだけ使います',
+  '【貼り付け方】Owlcast管理画面「会員管理」→「会員一覧」でCSV出力し、このタブの3行目以降をすべて削除してから A3 セルに CSV を見出し行ごと貼り付け。そのあと試験システムのメニュー「MAIA共有進捗」→「Owlcast会員IDを受講生マスタに記入する」を実行（メールアドレスで突合し、空欄だけを埋める）。正常に終わると3行目以降は自動で消えます（エラーのときは残ります）'
+];
+
+// 貼り付けタブの 1・2行目を書く。lastText を渡せば2行目の末尾を「最終取込: lastText」にし、省略時は今の表示を引き継ぐ
+function maiaWritePasteHeader_(sh, name, lastText) {
+  const t = MAIA_PASTE_TEXTS[name];
+  let last = lastText;
+  if (last === undefined) {
+    const a2 = String(sh.getRange('A2').getDisplayValue());
+    const i = a2.indexOf(MAIA_PASTE_LAST_MARK);
+    last = i >= 0 ? a2.slice(i + MAIA_PASTE_LAST_MARK.length) : '';
+  }
+  sh.getRange('A1').setValue(t[0]).setFontFamily('Arial').setFontSize(12).setFontWeight('bold').setFontColor('#000000').setBackground(null).setWrap(false);
+  sh.getRange('A2').setValue(t[1] + (last ? MAIA_PASTE_LAST_MARK + last : '')).setFontFamily('Arial').setFontSize(10).setFontWeight('normal')
+    .setFontColor('#555555').setBackground(null).setWrap(false);
+}
+
 // 「Owlcast取込」「Owlcast会員取込」タブ（貼り付け欄）を用意する。無ければ作る。
 // 1行目タイトル・2行目説明だけを書き、3行目以降（貼り付けた CSV）には触れない。
 // A1・A2 に CSV が貼られていた場合（タイトルが消えている）は、上書きしないよう何もしない
 function setupMaiaPasteTabs_(ss) {
-  const tabs = [
-    [MAIA_TAB_OWL_IMPORT, 'Owlcast取込（レッスン受講履歴CSVの貼り付け欄・はてなベース用）  同期では消えません。集計結果は Owlcast進捗 タブに出ます',
-      '【貼り付け方】Owlcast管理画面「学習状況」→「受講履歴」→「レッスン受講履歴」で全件をCSV出力し、このタブの3行目以降をすべて削除してから A3 セルに CSV を見出し行ごと貼り付け（毎回全件を貼り替え）。そのあと試験システムのメニュー「MAIA共有進捗」→「Owlcast取込を集計する」を実行'],
-    [MAIA_TAB_OWL_MEMBER, 'Owlcast会員取込（会員一覧CSVの貼り付け欄・はてなベース用）  同期では消えません。受講生マスタの Owlcast会員ID を埋めるときだけ使います',
-      '【貼り付け方】Owlcast管理画面「会員管理」→「会員一覧」でCSV出力し、このタブの3行目以降をすべて削除してから A3 セルに CSV を見出し行ごと貼り付け。そのあと試験システムのメニュー「MAIA共有進捗」→「Owlcast会員IDを受講生マスタに記入する」を実行（メールアドレスで突合し、空欄だけを埋める）']
-  ];
-  tabs.forEach(function (t) {
-    let sh = ss.getSheetByName(t[0]);
+  [MAIA_TAB_OWL_IMPORT, MAIA_TAB_OWL_MEMBER].forEach(function (name) {
+    let sh = ss.getSheetByName(name);
     if (!sh) {
-      sh = ss.insertSheet(t[0]);
-      Logger.log('タブを作成: ' + t[0]);
+      sh = ss.insertSheet(name);
+      Logger.log('タブを作成: ' + name);
     }
     const a1 = String(sh.getRange('A1').getDisplayValue());
     const a2 = String(sh.getRange('A2').getDisplayValue());
-    if ((a1 === '' || a1.indexOf(t[0] + '（') === 0) && (a2 === '' || a2.indexOf('【貼り付け方】') === 0)) {
-      sh.getRange('A1').setValue(t[1]).setFontFamily('Arial').setFontSize(12).setFontWeight('bold').setWrap(false);
-      sh.getRange('A2').setValue(t[2]).setFontFamily('Arial').setFontSize(10).setFontWeight('normal').setFontColor('#555555').setWrap(false);
+    if ((a1 === '' || a1.indexOf(name + '（') === 0) && (a2 === '' || a2.indexOf('【貼り付け方】') === 0)) {
+      maiaWritePasteHeader_(sh, name);
     } else {
-      Logger.log(t[0] + ' の1・2行目に貼り付けの値があるため、タイトルと説明は書きませんでした');
+      Logger.log(name + ' の1・2行目に貼り付けの値があるため、タイトルと説明は書きませんでした');
     }
   });
+}
+
+// 取込が正常に終わった貼り付けタブから、貼り付けたデータ（3行目以降。見出しが1・2行目に貼られていたらそこも）を消し、
+// 2行目に「最終取込: 日時（n行→m名）」を書く。他コホートの氏名・メールアドレスを共有シートに残さないため
+function maiaClearPasteTab_(sh, name, headerRow, lastText) {
+  const maxRows = sh.getMaxRows(), maxCols = sh.getMaxColumns();
+  const from = Math.min(3, Math.max(headerRow, 1));
+  if (maxRows >= from) {
+    const rg = sh.getRange(from, 1, maxRows - from + 1, maxCols);
+    rg.clear();
+    rg.clearDataValidations();
+  }
+  maiaWritePasteHeader_(sh, name, lastText);
+  SpreadsheetApp.flush();
+  return name + ' の貼り付けデータを消しました（' + from + '行目以降）';
 }
 
 // ===== 同期本体（1時間ごと） =====
@@ -968,7 +1003,6 @@ function maiaImportOwlcastCore_() {
   const stats = { rows: t.rows.length, used: 0, noMember: 0, noChapter: 0, badDuration: 0 };
   const lessonsByChapter = {}; // 章 → { レッスンキー: true }（CSV 全体）
   const members = {};          // 会員ID → 集計
-  const loginNames = {};       // 会員ID → ログイン名（ログ用）
   t.rows.forEach(function (r) {
     const login = t.idx.login >= 0 ? String(r[t.idx.login]).trim() : '';
     const mid = t.idx.memberId >= 0 && String(r[t.idx.memberId]).trim() ? maiaNormId_(r[t.idx.memberId]) : maiaMemberIdFromLogin_(login);
@@ -977,7 +1011,6 @@ function maiaImportOwlcastCore_() {
     const ch = maiaChapterNo_(lessonName);
     if (!ch || ch > MAIA_OWLCAST_CHAPTERS) { stats.noChapter++; return; }
     stats.used++;
-    if (login && !loginNames[mid]) loginNames[mid] = login;
     const lessonId = t.idx.lessonId >= 0 ? String(r[t.idx.lessonId]).trim() : '';
     const key = lessonId ? 'id:' + lessonId : 'name:' + lessonName;
     if (!lessonsByChapter[ch]) lessonsByChapter[ch] = {};
@@ -1021,9 +1054,11 @@ function maiaImportOwlcastCore_() {
   const master = readMaiaMaster_(ss);
   const seenOwl = {};
   const rows = [];
+  const notInCsv = [];   // Owlcast会員ID はあるが CSV に記録がない受講生（はてな側ID）
+  let noOwl = 0;         // Owlcast会員ID が未記入の受講生
   let started = 0, finished = 0;
   master.forEach(function (p) {
-    if (!p.owl) return;
+    if (!p.owl) { noOwl++; return; }
     const owl = maiaNormId_(p.owl);
     if (seenOwl[owl]) {
       log.push('スキップ（受講生マスタで Owlcast会員ID が重複。' + seenOwl[owl] + '行目と同じ）: マスタ ' + p.row + '行目');
@@ -1047,6 +1082,7 @@ function maiaImportOwlcastCore_() {
     }
     const status = !m ? '未着手' : (doneCount === MAIA_OWLCAST_CHAPTERS ? '受講済' : '受講中');
     if (m) started++;
+    else notInCsv.push(p.id || ('マスタ' + p.row + '行目'));
     if (status === '受講済') finished++;
     rows.push([rows.length + 1, p.id, p.name, p.muni, status, doneCount].concat(chapters).concat([
       m ? Math.round(m.seconds / 60) : 0,
@@ -1060,17 +1096,18 @@ function maiaImportOwlcastCore_() {
   });
   const unknown = Object.keys(members).filter(function (k) { return !seenOwl[k]; });
   if (unknown.length > 0) {
-    log.push('受講生マスタに Owlcast会員ID が無い会員（集計対象外）' + unknown.length + '名: ' +
-      unknown.map(function (k) { return 'ID:' + k + (loginNames[k] ? '（' + loginNames[k] + '）' : ''); }).join('、'));
+    log.push('受講生マスタに Owlcast会員ID が無い会員（集計対象外）' + unknown.length + '名: 会員ID ' +
+      unknown.slice(0, 20).join('、') + (unknown.length > 20 ? ' ほか' + (unknown.length - 20) + '名' : '') + '（氏名は出しません）');
   }
   const stamp = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
   const title = 'Owlcast 学習進捗（章別・全自治体）  データソース: Owlcast管理画面 レッスン受講履歴CSV（Owlcast取込タブ。はてなベースが週2回貼り付けて集計）  取込: ' + stamp +
     '（CSV ' + stats.rows + '行）  ※取込のたびに作り直します。備考は はてな側ID ごとに引き継ぎます';
   maiaWriteOwlcast_(ss, out, rows, title);
-  // 貼り付け欄の見出し行に見出しの書式を当てる（値は変えない）
-  if (!t.raw) {
-    imp.getRange(t.headerRow, 1, 1, t.header.length).setBackground(MAIA_HEADER_BG).setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
-  }
+  SpreadsheetApp.flush();
+  // ここまで正常に終わったら貼り付けたデータを消す（エラーで止まったときは原因確認のため残す）
+  log.push('取込件数: 読み込んだ行 ' + stats.rows + '行／マスタに一致した受講生 ' + started + '名／一致しなかった受講生 ' + notInCsv.length + '名' +
+    (notInCsv.length ? '（' + notInCsv.join('、') + '）' : '') + (noOwl ? '／Owlcast会員ID 未記入 ' + noOwl + '名（集計対象外）' : ''));
+  log.push(maiaClearPasteTab_(imp, MAIA_TAB_OWL_IMPORT, t.headerRow, stamp + '（' + stats.rows + '行→' + started + '名）'));
   const summary = stamp + ' 取込: CSV ' + stats.rows + '行（集計に使用 ' + stats.used + '行・章番号なし/7章以降 ' + stats.noChapter + '行・会員IDなし ' + stats.noMember + '行' +
     (stats.badDuration ? '・受講時間を読めない ' + stats.badDuration + '行' : '') + '）／Owlcast進捗 ' + rows.length + '名（受講済 ' + finished + '名・受講中 ' + (started - finished) +
     '名・未着手 ' + (rows.length - started) + '名）／マスタ外の会員 ' + unknown.length + '名' + (targetId !== MAIA_TARGET_SS_ID ? ' ※共有シートの検証用コピー' : '');
@@ -1110,11 +1147,12 @@ function fillOwlcastMemberIds() {
     master.forEach(function (p) { if (p.owl) used[maiaNormId_(p.owl)] = p.row; });
     const log = [];
     const unmatched = [];
-    let written = 0, kept = 0;
+    let written = 0, kept = 0, matched = 0;
     master.forEach(function (p) {
       const label = 'マスタ ' + p.row + '行目' + (p.id ? '（' + p.id + ' ' + p.name + '）' : '（' + p.name + '）');
       const key = p.email.toLowerCase();
       const csvId = key ? byEmail[key] : '';
+      if (csvId && !conflict[key]) matched++;
       if (p.owl) {
         kept++;
         if (csvId && csvId !== maiaNormId_(p.owl)) log.push('既存の値を残しました（CSV では ' + csvId + '）: ' + label);
@@ -1135,9 +1173,16 @@ function fillOwlcastMemberIds() {
       written++;
     });
     SpreadsheetApp.flush();
-    const summary = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm') + ' 会員取込: CSV ' + t.rows.length + '行／受講生マスタ ' + master.length + '名のうち 記入 ' + written +
+    const stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+    const summary = stamp + ' 会員取込: CSV ' + t.rows.length + '行／受講生マスタ ' + master.length + '名のうち 記入 ' + written +
       '名・記入済みで変更なし ' + kept + '名・突合できず ' + unmatched.length + '名' + (targetId !== MAIA_TARGET_SS_ID ? ' ※共有シートの検証用コピー' : '');
     const detail = log.concat(unmatched.map(function (u) { return '突合できず: ' + u; }));
+    // ここまで正常に終わったら貼り付けたデータを消す（エラーで止まったときは原因確認のため残す）
+    const nonMatchIds = master.filter(function (p) { const k = p.email.toLowerCase(); return !(k && byEmail[k] && !conflict[k]); })
+      .map(function (p) { return p.id || ('マスタ' + p.row + '行目'); });
+    detail.push('取込件数: 読み込んだ行 ' + t.rows.length + '行／マスタに一致した受講生 ' + matched + '名／一致しなかった受講生 ' + nonMatchIds.length + '名' +
+      (nonMatchIds.length ? '（' + nonMatchIds.join('、') + '）' : ''));
+    detail.push(maiaClearPasteTab_(sh, MAIA_TAB_OWL_MEMBER, t.headerRow, stamp + '（' + t.rows.length + '行→' + matched + '名）'));
     Logger.log(summary + (detail.length ? '\n' + detail.join('\n') : ''));
     return summary + (detail.length ? '\n' + detail.join('\n') : '');
   } finally {
