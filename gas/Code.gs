@@ -181,6 +181,7 @@ function onOpen() {
     .addItem('管理者プレビューURLを生成する', 'generateSkillCheckAdminUrls')
     .addItem('結果シートの見出しを作成する', 'setupSkillCheckResultSheet')
     .addToUi();
+  maiaAddMenu_(ui); // maia_sync.gs（MAIA共有進捗。既存メニューの後ろに追加）
 }
 
 function generateTokens() {

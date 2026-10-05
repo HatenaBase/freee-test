@@ -10,15 +10,20 @@
 //   ③ 受験URLを送付（試験システムの案内メール機能）
 //   ④ 以降は syncFukuyamaToMaiaSheet() が1時間ごとに結果を同期
 //      （関数名は既存の時間主導トリガーに紐づいているため、複数自治体対応後も旧名のまま。処理は自治体を問わない）
+//   ⑤ Owlcast進捗は半手動: はてなベースが管理画面のレッスン受講履歴CSVを「Owlcast取込」タブに全件貼り付け、
+//      importOwlcastHistory()（手動実行専用・トリガーに載せない）で「Owlcast進捗」を作り直す。
+//      受講生と Owlcast 会員の対応は受講生マスタの「Owlcast会員ID」列（会員一覧CSVを「Owlcast会員取込」に貼って fillOwlcastMemberIds() で記入）
 //
 // - 同期処理は元スプレッドシートを読み取るだけ。書き込むのは registerFromMaster() だけ
-// - 同期処理は「受講生マスタ」「Owlcast進捗」タブを書き換えない（マスタの はてな側ID 列は registerFromMaster() だけが書く）
+// - 同期処理は「受講生マスタ」「Owlcast進捗」「Owlcast取込」「Owlcast会員取込」タブを書き換えない
+//   （マスタの はてな側ID 列は registerFromMaster() だけ、Owlcast会員ID 列は fillOwlcastMemberIds() だけが書く）
 // - token / email / URL / admin_URL 列は共有側に書き出さない（列はホワイトリストで指定）
 //
 // 初回: initMaiaSync() を GAS エディタから1回実行（書式設定＋1時間トリガー設置＋初回同期）
 // 定期: syncFukuyamaToMaiaSheet() が1時間ごとに時間主導トリガーで動く
 // 検証: maiaTestUseSourceCopy() で元スプレッドシートのコピーを作り参照先を切り替え、
 //       終わったら maiaTestUseProductionSource() で本番に戻す（コピーは Drive でゴミ箱へ）
+//       共有シート側は maiaTestUseTargetCopy() でコピーを作って書き込み先を切り替え、maiaTestUseProductionTarget() で戻す
 // =====================================================================
 
 const MAIA_SOURCE_SS_ID = '13sA5RMm-m4TtYBH8BmE1RxI4UNmcW2O9vbiQGOVP4A4'; // 試験システム（本番。既定の参照先）
@@ -28,6 +33,7 @@ const MAIA_TARGET_SS_NAME = 'MAIA_freee会計コース_受講進捗共有';     
 // Script Properties のキー
 const MAIA_PROP_SOURCE_OVERRIDE = 'MAIA_SOURCE_SS_ID_OVERRIDE'; // 検証用コピーのID（空なら本番）
 const MAIA_PROP_LAST_REGISTER = 'MAIA_LAST_REGISTER';           // 直近の registerFromMaster の結果（README の同期結果欄に出す）
+const MAIA_PROP_TARGET_OVERRIDE = 'MAIA_TARGET_SS_ID_OVERRIDE'; // 共有シートの検証用コピーのID（空なら本番の共有シート）
 
 // 受講生ID
 const MAIA_ID_HEADER = '受講生ID';     // 試験システム側（トークン管理・スキルチェック_トークン管理）の見出し
@@ -54,6 +60,8 @@ const MAIA_TAB_ROSTER = '受講生一覧';
 const MAIA_TAB_SKILL = 'スキルチェック';
 const MAIA_TAB_TEST = '認定試験';
 const MAIA_TAB_OWLCAST = 'Owlcast進捗';
+const MAIA_TAB_OWL_IMPORT = 'Owlcast取込';     // レッスン受講履歴CSVの貼り付け欄（はてなベース用。同期では触らない）
+const MAIA_TAB_OWL_MEMBER = 'Owlcast会員取込'; // 会員一覧CSVの貼り付け欄（はてなベース用。同期では触らない）
 
 const MAIA_LAST_SYNC_CELL = 'B9';   // README の最終同期日時
 const MAIA_SYNC_RESULT_CELL = 'B10'; // README の同期結果
@@ -77,6 +85,7 @@ const MAIA_MH_MUNI = '自治体名';
 const MAIA_MH_EMAIL = 'メールアドレス';
 const MAIA_MH_ID = 'はてな側ID';
 const MAIA_MH_NOTE = '備考';
+const MAIA_MH_OWL = 'Owlcast会員ID'; // はてなベースが記入する任意列。無ければ setupMaiaSheet が「備考」の直前に挿入する
 const MAIA_TEST_NOTE = '検証用'; // 備考がこの値の行だけを maiaTestRegisterVerificationRows() が登録する
 const MAIA_MASTER_ROWS = 100; // 入力枠の行数
 
@@ -128,14 +137,58 @@ function maiaTestColumns_() {
   ];
 }
 
-// Owlcast進捗: A=No(数式) B=はてな側ID(入力) C=氏名(数式) D=自治体名(数式) E=状況 … R=取得日
-const MAIA_OWLCAST_HEADERS = ['No', 'はてな側ID', '氏名', '自治体名', '状況', '完了章数', '1章 概要', '2章 経理体制', '3章 セットアップ', '4章 機能', '5章 人事労務・経費精算', '6章 応用機能', '受講時間合計(分)', '受講開始日', '完了日', '最終受講日', '備考', '取得日'];
-const MAIA_OWLCAST_ROWS = 200; // 手入力枠の行数
+// Owlcast進捗（importOwlcastHistory が毎回作り直す）: A=No B=はてな側ID C=氏名(数式) D=自治体名(数式) E=状況 F=完了章数
+// G〜L=1〜6章 完了日（完了なら日付・受講中なら「中」・未着手は空）M=受講時間合計(分) N=受講開始日 O=完了日 P=最終受講日 Q=備考（はてな側IDで引き継ぎ）R=取得日
+// 受講生一覧の「Owlcast 状況」は見出し「はてな側ID」「状況」で列を探して引く（名前を変えないこと）
+const MAIA_OWLCAST_CHAPTERS = 6;
+const MAIA_OWLCAST_HEADERS = (function () {
+  const h = ['No', 'はてな側ID', '氏名', '自治体名', '状況', '完了章数'];
+  for (let c = 1; c <= MAIA_OWLCAST_CHAPTERS; c++) h.push(c + '章 完了日');
+  return h.concat(['受講時間合計(分)', '受講開始日', '完了日', '最終受講日', '備考', '取得日']);
+})();
+// Owlcast進捗の列定義（writeMaiaTable_ 用）
+function maiaOwlcastColumns_() {
+  return MAIA_OWLCAST_HEADERS.map(function (h) {
+    if (h === 'No' || h === '完了章数' || h === '受講時間合計(分)') return ['', h, 'num'];
+    if (h === 'はてな側ID' || h === '状況') return ['', h, 'center'];
+    if (h === '氏名') return ['', h, 'text', 140];
+    if (h === '自治体名') return ['', h, 'text', 100];
+    if (h === '備考') return ['', h, 'text', 260];
+    if (h === '取得日') return ['', h, 'date', 130];
+    return ['', h, 'day', 100]; // 各章の完了日・受講開始日・完了日・最終受講日
+  });
+}
+
+// CSV の見出し候補（見出し名で列を探す。列位置は固定しない。大文字小文字・前後の空白・BOM は無視）
+// レッスン受講履歴（学習状況＞受講履歴＞レッスン受講履歴）
+const MAIA_OWL_HISTORY_COLS = {
+  updated: { label: '最終更新日時', names: ['最終更新日時', '最終更新日', '更新日時'], required: true },
+  lessonId: { label: 'レッスンID', names: ['レッスンID', 'レッスンＩＤ'], required: false },
+  lesson: { label: 'レッスン名', names: ['レッスン名', 'レッスンタイトル', 'コンテンツ名'], required: true },
+  login: { label: 'ログイン名', names: ['ログイン名', '会員名', 'ユーザー名'], required: false },
+  memberId: { label: '会員ID', names: ['会員ID', '会員ＩＤ', 'ユーザーID'], required: false },
+  start: { label: '受講開始日時', names: ['受講開始日時', '受講開始日', '開始日時'], required: true },
+  done: { label: '受講完了日時', names: ['受講完了日時', '受講完了日', '完了日時'], required: true },
+  seconds: { label: '受講時間', names: ['受講時間', '学習時間'], required: true },
+  status: { label: 'ステータス', names: ['ステータス', '受講ステータス', '状態'], required: true }
+};
+// 会員一覧（会員管理＞会員一覧）
+const MAIA_OWL_MEMBER_COLS = {
+  memberId: { label: '会員ID', names: ['会員ID', '会員ＩＤ', 'ID', 'ユーザーID'], required: false },
+  login: { label: 'ログイン名', names: ['ログイン名', '会員名'], required: false },
+  email: { label: 'メールアドレス', names: ['メールアドレス', 'メール', 'Eメール', 'E-mail', 'email', 'mail'], required: true }
+};
 
 // 参照する試験システムのスプレッドシートID（検証用コピーへの切替は Script Properties で行う。既定は本番）
 function maiaSourceId_() {
   const override = PropertiesService.getScriptProperties().getProperty(MAIA_PROP_SOURCE_OVERRIDE);
   return override || MAIA_SOURCE_SS_ID;
+}
+
+// 書き込み先の共有シートのID（検証用コピーへの切替は Script Properties で行う。既定は本番の共有シート）
+function maiaTargetId_() {
+  const override = PropertiesService.getScriptProperties().getProperty(MAIA_PROP_TARGET_OVERRIDE);
+  return override || MAIA_TARGET_SS_ID;
 }
 
 // ===== 初回セットアップ（GASエディタから1回実行） =====
@@ -159,8 +212,9 @@ function installMaiaSyncTrigger() {
 
 // README・受講生マスタ・Owlcast進捗タブの見出しと書式を整え、同期する（何度実行してもマスタ・Owlcast の入力値は消さない）
 function setupMaiaSheet() {
-  const ss = SpreadsheetApp.openById(MAIA_TARGET_SS_ID);
-  if (ss.getName() !== MAIA_TARGET_SS_NAME) {
+  const targetId = maiaTargetId_();
+  const ss = SpreadsheetApp.openById(targetId);
+  if (targetId === MAIA_TARGET_SS_ID && ss.getName() !== MAIA_TARGET_SS_NAME) {
     Logger.log('スプレッドシート名を変更: ' + ss.getName() + ' → ' + MAIA_TARGET_SS_NAME);
     ss.rename(MAIA_TARGET_SS_NAME);
   }
@@ -170,10 +224,12 @@ function setupMaiaSheet() {
   setupMaiaReadme_(ss);
   setupMaiaMaster_(ss);
   setupMaiaOwlcast_(ss);
+  setupMaiaPasteTabs_(ss);
   syncFukuyamaToMaiaSheet();
 }
 
-// README は A1:D14 だけを書き直す。「取扱区分」（社外秘表示）の行は残し、説明と重なるときは行を挿入して15行目以降へずらす
+// README は A1:D15 だけを書き直す。「取扱区分」（社外秘表示）の行は残し、説明と重なるときは行を挿入して16行目以降へずらす
+// 表（2行目〜）は B9（最終同期日時）より上に収める（タブの行は7行まで）
 function setupMaiaReadme_(ss) {
   const sh = ss.getSheetByName(MAIA_TAB_README);
   const infoStart = 9;
@@ -181,11 +237,12 @@ function setupMaiaReadme_(ss) {
     ['最終同期日時', '（未同期）'],
     ['同期結果', ''],
     ['対象の判定', '受講生マスタの「はてな側ID」に登録された受講生（自治体は問わない）。試験システムの「受講生ID」で照合する（氏名・所属では判定しない）。各タブの自治体名は受講生マスタの自治体名を はてな側ID で引いて表示する'],
-    ['注意', 'スキルチェック・認定試験・受講生一覧の3タブは同期のたびに全件置き換えます。手で書き込んだ内容は消えるため、メモは 受講生マスタ または Owlcast進捗 の備考列に書いてください。受講生マスタは同期では書き換えません'],
-    ['運用の順番', '① 渡辺さん（MAIA）が受講生マスタに 氏名・自治体名・MAIA受講番号・MAIA管理ID・メールアドレスを入力（氏名・自治体名・メールアドレスは必須）\n② はてなベースが registerFromMaster を実行（はてな側ID を HB-001 からの通し番号で採番してマスタに記入し、受験URLを発行。試験システムの所属は自治体名になる）\n③ はてなベースが受験URLを送付\n④ 以降、スキルチェック・認定試験・受講生一覧は1時間ごとに自動同期。Owlcast進捗は週次で管理画面から転記'],
-    ['自治体の追加', '新しい自治体の受講生は、受講生マスタの空いている行に入力し、自治体名の列に自治体名を入れるだけです（ブックやタブの追加は不要）。プルダウンの候補にない名前もそのまま入力できます。\n候補に足すとき: 受講生マスタの自治体名の列（C列）を選び、メニューの「データ」→「データの入力規則」で既存のルール（プルダウン）を開き、「別のアイテムを追加」で自治体名を足して「完了」。足した候補は、はてなベースが書式を再設定しても残ります。\nはてな側IDは自治体をまたいだ通し番号のため、自治体ごとに番号は振り直しません。受講生一覧は見出し行のフィルタで自治体名を絞り込めます']
+    ['注意', 'スキルチェック・認定試験・受講生一覧の3タブは同期のたびに全件置き換えます。手で書き込んだ内容は消えるため、メモは 受講生マスタ または Owlcast進捗 の備考列に書いてください。受講生マスタは同期では書き換えません。Owlcast進捗は取込のたびに作り直しますが、備考列は はてな側ID ごとに引き継ぎます'],
+    ['運用の順番', '① 渡辺さん（MAIA）が受講生マスタに 氏名・自治体名・MAIA受講番号・MAIA管理ID・メールアドレスを入力（氏名・自治体名・メールアドレスは必須）\n② はてなベースが registerFromMaster を実行（はてな側ID を HB-001 からの通し番号で採番してマスタに記入し、受験URLを発行。試験システムの所属は自治体名になる）\n③ はてなベースが受験URLを送付\n④ 以降、スキルチェック・認定試験・受講生一覧は1時間ごとに自動同期。Owlcast進捗は週2回（月・木）、はてなベースが管理画面のCSVを貼り付けて集計（手順は下の「Owlcast取込の手順」）'],
+    ['自治体の追加', '新しい自治体の受講生は、受講生マスタの空いている行に入力し、自治体名の列に自治体名を入れるだけです（ブックやタブの追加は不要）。プルダウンの候補にない名前もそのまま入力できます。\n候補に足すとき: 受講生マスタの自治体名の列（C列）を選び、メニューの「データ」→「データの入力規則」で既存のルール（プルダウン）を開き、「別のアイテムを追加」で自治体名を足して「完了」。足した候補は、はてなベースが書式を再設定しても残ります。\nはてな側IDは自治体をまたいだ通し番号のため、自治体ごとに番号は振り直しません。受講生一覧は見出し行のフィルタで自治体名を絞り込めます'],
+    ['Owlcast取込の手順', '（はてなベースが週2回・月曜と木曜に実施）\n① Owlcast管理画面の「学習状況」→「受講履歴」→「レッスン受講履歴」で全件をCSV出力する\n② このスプレッドシートの「Owlcast取込」タブで3行目以降をすべて削除し、A3セルにCSVを見出し行ごと貼り付ける（毎回全件を貼り替える。CSVをテキストのまま貼っても読み取れる）\n③ 試験システムのメニュー「MAIA共有進捗」→「Owlcast取込を集計する」を実行する（GASエディタからは importOwlcastHistory）。Owlcast進捗タブが作り直され、取得日に実行日時が入る\n受講生が増えたとき: 会員管理→会員一覧のCSVを「Owlcast会員取込」タブのA3に貼り、メニュー「Owlcast会員IDを受講生マスタに記入する」（fillOwlcastMemberIds）を実行する。メールアドレスで突合し、受講生マスタの Owlcast会員ID の空欄だけを埋める（突合できなかった人は実行結果に出るので手で入れる）']
   ];
-  const infoEnd = infoStart + info.length - 1; // 14
+  const infoEnd = infoStart + info.length - 1; // 15
   const lastRow = Math.max(sh.getLastRow(), 1);
   const colA = sh.getRange(1, 1, lastRow, 1).getDisplayValues();
   let confRow = -1;
@@ -196,16 +253,18 @@ function setupMaiaReadme_(ss) {
   sh.getBandings().forEach(function (b) { b.remove(); });
   sh.getRange('A1:D' + infoEnd).clear();
   const created = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd');
-  sh.getRange('A1').setValue('MAIA freee会計コース 受講進捗共有（自治体ごとの受講生を1冊で管理）  作成日: ' + created + '  データソース: はてなベース試験システム（受験時に自動記録）／受講生マスタ（MAIA入力）／Owlcast管理画面（手入力）')
+  sh.getRange('A1').setValue('MAIA freee会計コース 受講進捗共有（自治体ごとの受講生を1冊で管理）  作成日: ' + created + '  データソース: はてなベース試験システム（受験時に自動記録）／受講生マスタ（MAIA入力）／Owlcast管理画面（CSV貼り付け）')
     .setFontFamily('Arial').setFontSize(12).setFontWeight('bold');
   const rows = [
     ['タブ', '内容', '更新方法', '更新頻度'],
-    [MAIA_TAB_MASTER, '受講生の名簿（正本）。自治体をまたいで1行1名で入力する。氏名・自治体名・メールアドレスは必須、MAIA受講番号・MAIA管理ID・備考は任意（空でよい）。はてな側ID以外は渡辺さん（MAIA）が入力し、はてな側IDははてなベースが試験システム登録時に記入する。同期では消えない', '手動入力（MAIA）／はてな側IDははてなベース', '随時'],
+    [MAIA_TAB_MASTER, '受講生の名簿（正本）。自治体をまたいで1行1名で入力する。氏名・自治体名・メールアドレスは必須、MAIA受講番号・MAIA管理ID・備考は任意（空でよい）。はてな側ID・Owlcast会員ID以外は渡辺さん（MAIA）が入力し、はてな側IDははてなベースが試験システム登録時に、Owlcast会員ID（任意）ははてなベースが会員一覧CSVから記入する。同期では消えない', '手動入力（MAIA）／はてな側ID・Owlcast会員IDははてなベース', '随時'],
     [MAIA_TAB_ROSTER, '受講生マスタの行を同じ順で並べた集約ビュー。自治体名は受講生マスタから はてな側ID で引く。見出し行のフィルタで自治体を絞り込める。スキルチェック・認定試験・Owlcast進捗の各タブを はてな側ID で数式参照', '自動（同期時に再作成）', '1時間ごと'],
     [MAIA_TAB_SKILL, '簿記3級スキルチェックの受験結果（受験ごとに1行、受講生ID・自治体名つき、単元別の正答数つき）', '自動（試験システムから同期）', '1時間ごと'],
     [MAIA_TAB_TEST, 'freee会計 修了認定テストの受験結果（受験ごとに1行、受講生ID・自治体名つき、合格ライン75%）', '自動（試験システムから同期）', '1時間ごと'],
-    [MAIA_TAB_OWLCAST, 'Owlcast（LMS）の章別の学習進捗。はてな側IDを入れると氏名・自治体名は受講生マスタから自動表示。取得日の列に管理画面から転記した日付を入れる', '手動入力', '週次']
+    [MAIA_TAB_OWLCAST, 'Owlcast（LMS）の章別の学習進捗。1行1受講生（受講生マスタで Owlcast会員ID がある人をマスタの順に並べる）。各章は完了日、受講中は「中」、未着手は空欄。氏名・自治体名は受講生マスタから はてな側ID で引く。取込のたびに作り直すが、備考は引き継ぐ。取得日は取込の実行日時', '半手動（CSV貼り付け→自動集計）', '週2回（月・木）。LMS運営会社のAIアシスト（MCP連携）受理後に日次自動化'],
+    [MAIA_TAB_OWL_IMPORT + '\n' + MAIA_TAB_OWL_MEMBER, 'はてなベース用の貼り付け欄。Owlcast取込＝管理画面のレッスン受講履歴CSV（毎回全件を貼り替え）、Owlcast会員取込＝会員一覧CSV（受講生マスタの Owlcast会員ID を埋めるときだけ使う）。同期では消えない', '手動貼り付け（はてなベース）', 'Owlcast取込は週2回（月・木）／会員取込は受講生の追加時']
   ];
+  if (rows.length + 1 >= infoStart) throw new Error('README の表が B' + infoStart + '（最終同期日時）に重なります');
   sh.getRange(2, 1, rows.length, 4).setValues(rows);
   formatMaiaTable_(sh, 2, 4, rows.length - 1);
   sh.getRange(3, 1, rows.length - 1, 4).setVerticalAlignment('middle').setWrap(true);
@@ -235,12 +294,13 @@ function setupMaiaMaster_(ss) {
     sh.getRange(2, 1, 1, MAIA_MASTER_INITIAL_HEADERS.length).setValues([MAIA_MASTER_INITIAL_HEADERS]);
   }
   maiaMigrateMasterMunicipality_(sh);
+  maiaMigrateMasterOwlcastId_(sh);
   const mc = maiaMasterColumns_(sh);
   const n = mc.width;
   const rows = MAIA_MASTER_ROWS;
   if (sh.getMaxRows() < rows + 2) sh.insertRowsAfter(sh.getMaxRows(), rows + 2 - sh.getMaxRows());
   const created = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd');
-  sh.getRange('A1').setValue('受講生マスタ（全自治体共通）  ※このタブは渡辺さん（MAIA）が入力します（氏名・自治体名・MAIA受講番号・MAIA管理ID・メールアドレスなど、はてな側ID以外の列）。同期では消えません。はてな側IDははてなベースが試験システム登録時に記入します  作成日: ' + created)
+  sh.getRange('A1').setValue('受講生マスタ（全自治体共通）  ※このタブは渡辺さん（MAIA）が入力します（氏名・自治体名・MAIA受講番号・MAIA管理ID・メールアドレスなど、はてな側ID・Owlcast会員ID以外の列）。同期では消えません。はてな側IDははてなベースが試験システム登録時に、Owlcast会員IDははてなベースが会員一覧CSVから記入します  作成日: ' + created)
     .setFontFamily('Arial').setFontSize(12).setFontWeight('bold');
   sh.getBandings().forEach(function (b) { b.remove(); });
   formatMaiaTable_(sh, 2, n, rows);
@@ -275,6 +335,10 @@ function setupMaiaMaster_(ss) {
     .setHelpText('一覧から選ぶか、自治体名を直接入力してください').build());
   sh.getRange(2, mc.muni + 1).setNote('受講者の自治体名（渡辺さん入力・必須）。プルダウンに無い自治体名も直接入力できます。候補の足し方は README「自治体の追加」');
   sh.getRange(2, mc.id + 1).setNote('はてなベースが試験システム登録時に記入します（registerFromMaster）。手で書き換えないでください');
+  if (mc.owl >= 0) {
+    sh.getRange(2, mc.owl + 1).setNote('Owlcast（LMS）の会員ID（任意）。はてなベースが会員一覧CSVから記入します（fillOwlcastMemberIds）。Owlcast進捗はこのIDで受講履歴を突合します');
+    sh.getRange(3, mc.owl + 1, rows, 1).setHorizontalAlignment('center');
+  }
   // はてな側ID 列は警告つき保護（編集はできるが確認が出る）。既存の同名保護は作り直す
   const desc = '受講生マスタ はてな側ID（はてなベース記入）';
   sh.getProtections(SpreadsheetApp.ProtectionType.RANGE).forEach(function (p) {
@@ -287,6 +351,7 @@ function setupMaiaMaster_(ss) {
     else if (k === mc.muni) w = 110;
     else if (k === mc.email) w = 240;
     else if (k === mc.id) w = 110;
+    else if (k === mc.owl) w = 120;
     else if (k === n - 1) w = 240;
     sh.setColumnWidth(k + 1, Math.max(w, maiaTextWidth_(mc.headers[k])));
   }
@@ -320,8 +385,28 @@ function maiaMigrateMasterMunicipality_(sh) {
   Logger.log('受講生マスタに「' + MAIA_MH_MUNI + '」列を追加（' + maiaColLetter_(col) + '列）。既存の入力行 ' + filled + '行に「' + MAIA_MUNICIPALITY_MIGRATION_VALUE + '」を入力');
 }
 
+// 受講生マスタに「Owlcast会員ID」列が無ければ「備考」の直前に挿入する（備考が無ければ末尾に追加）。1回だけ。
+// 列の挿入なので既存の値は右へずれるだけで変わらない。新しい列は空のまま（値は fillOwlcastMemberIds か手入力で入れる）
+function maiaMigrateMasterOwlcastId_(sh) {
+  const lastCol = Math.max(sh.getLastColumn(), 1);
+  const headers = sh.getRange(2, 1, 1, lastCol).getDisplayValues()[0].map(function (h) { return String(h).trim(); });
+  if (headers.indexOf(MAIA_MH_OWL) >= 0) return;
+  while (headers.length > 0 && headers[headers.length - 1] === '') headers.pop();
+  const noteIdx = headers.indexOf(MAIA_MH_NOTE);
+  let col;
+  if (noteIdx >= 0) {
+    sh.insertColumnBefore(noteIdx + 1);
+    col = noteIdx + 1;
+  } else {
+    col = headers.length + 1;
+    if (col > sh.getMaxColumns()) sh.insertColumnAfter(sh.getMaxColumns());
+  }
+  sh.getRange(2, col).setValue(MAIA_MH_OWL);
+  Logger.log('受講生マスタに「' + MAIA_MH_OWL + '」列を追加（' + maiaColLetter_(col) + '列）');
+}
+
 // 受講生マスタの列位置（0始まり）を2行目の見出し名で探す。氏名・メールアドレス・はてな側ID が無ければエラー
-// 自治体名（muni）・備考（note）は無ければ -1（自治体名が無いと registerFromMaster はエラーにする）
+// 自治体名（muni）・備考（note）・Owlcast会員ID（owl）は無ければ -1（自治体名が無いと registerFromMaster はエラーにする）
 function maiaMasterColumns_(sh) {
   const lastCol = Math.max(sh.getLastColumn(), 1);
   const headers = sh.getRange(2, 1, 1, lastCol).getDisplayValues()[0].map(function (h) { return String(h).trim(); });
@@ -334,7 +419,8 @@ function maiaMasterColumns_(sh) {
     muni: headers.indexOf(MAIA_MH_MUNI),
     email: headers.indexOf(MAIA_MH_EMAIL),
     id: headers.indexOf(MAIA_MH_ID),
-    note: headers.indexOf(MAIA_MH_NOTE)
+    note: headers.indexOf(MAIA_MH_NOTE),
+    owl: headers.indexOf(MAIA_MH_OWL)
   };
   const missing = [];
   if (c.name < 0) missing.push(MAIA_MH_NAME);
@@ -355,71 +441,87 @@ function maiaColLetter_(col) {
   return s;
 }
 
-// Owlcast進捗: はてな側ID で受講生を指定し、氏名・自治体名は受講生マスタから数式で引く
-// 旧レイアウト（B列=氏名・C列=所属）で入力値が残っている場合は、消さないよう中止する
-// 自治体名列が無いレイアウト（B=はてな側ID・C=氏名・D=状況）は、C列の後ろに列を挿入して入力値を保ったまま移行する
+// Owlcast進捗: importOwlcastHistory が毎回作り直すタブ。setupMaiaSheet では、すでに取込方式のレイアウトなら何もしない。
+// 手入力方式（旧レイアウト）のときは、手入力の値（数式以外のセル）が1つでもあれば消さないよう中止し、無ければ空の取込方式レイアウトに作り直す
 function setupMaiaOwlcast_(ss) {
-  const sh = ss.getSheetByName(MAIA_TAB_OWLCAST);
-  const n = MAIA_OWLCAST_HEADERS.length;
-  const rows = MAIA_OWLCAST_ROWS;
-  if (String(sh.getRange('B2').getValue()) !== 'はてな側ID') {
-    const old = sh.getRange(3, 1, rows, n).getValues();
-    const hasInput = old.some(function (r) { return r.some(function (v) { return v !== '' && v !== null; }); });
-    if (hasInput) throw new Error('Owlcast進捗 に旧レイアウトの入力値があるため作り直しを中止しました。値を退避してから再実行してください');
-    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
-    sh.getBandings().forEach(function (b) { b.remove(); });
-    sh.clear();
-    sh.setFrozenColumns(0);
-  } else if (String(sh.getRange('D2').getValue()) !== '自治体名') {
-    sh.setFrozenColumns(0);
-    sh.insertColumnAfter(3); // 状況以降の入力値は1列右へずれる
-    Logger.log('Owlcast進捗に「自治体名」列を追加（D列）');
+  let sh = ss.getSheetByName(MAIA_TAB_OWLCAST);
+  if (!sh) sh = ss.insertSheet(MAIA_TAB_OWLCAST);
+  const lastCol = Math.max(sh.getLastColumn(), 1);
+  const cur = sh.getRange(2, 1, 1, lastCol).getDisplayValues()[0].map(function (h) { return String(h).trim(); });
+  while (cur.length > 0 && cur[cur.length - 1] === '') cur.pop();
+  if (cur.join('\t') === MAIA_OWLCAST_HEADERS.join('\t')) {
+    Logger.log('Owlcast進捗は取込方式のレイアウト（作り直さない）');
+    return;
   }
-  sh.getRange('A1').setValue('Owlcast 学習進捗（章別・全自治体）  データソース: Owlcast管理画面 受講履歴（週次で手入力。はてな側IDを入れると氏名・自治体名は受講生マスタから自動表示。取得日列に転記日を記入）')
-    .setFontFamily('Arial').setFontSize(12).setFontWeight('bold');
-  sh.getRange(2, 1, 1, n).setValues([MAIA_OWLCAST_HEADERS]);
-  sh.getBandings().forEach(function (b) { b.remove(); });
-  formatMaiaTable_(sh, 2, n, rows);
-  sh.getRange(3, 1, rows, n).setVerticalAlignment('middle');
-  // 列ごとの揃え・書式（A=No B=ID C=氏名 D=自治体名 E=状況 F=完了章数 G〜L=1〜6章 M=受講時間 N〜P=日付 Q=備考 R=取得日）
-  sh.getRange(3, 1, rows, 1).setHorizontalAlignment('right');            // No
-  sh.getRange(3, 2, rows, 1).setHorizontalAlignment('center');           // はてな側ID
-  sh.getRange(3, 3, rows, 2).setHorizontalAlignment('left');             // 氏名・自治体名
-  sh.getRange(3, 5, rows, 8).setHorizontalAlignment('center');           // 状況〜6章
-  sh.getRange(3, 6, rows, 1).setNumberFormat('0').setHorizontalAlignment('right');
-  sh.getRange(3, 13, rows, 1).setNumberFormat('#,##0').setHorizontalAlignment('right');
-  sh.getRange(3, 14, rows, 3).setNumberFormat('yyyy/mm/dd').setHorizontalAlignment('right');
-  sh.getRange(3, 17, rows, 1).setHorizontalAlignment('left');
-  sh.getRange(3, 18, rows, 1).setNumberFormat('yyyy/mm/dd').setHorizontalAlignment('right');
-  // No・氏名・自治体名は数式（はてな側IDから受講生マスタを引く）
-  const master = ss.getSheetByName(MAIA_TAB_MASTER);
-  const mc = maiaMasterColumns_(master);
+  const last = sh.getLastRow();
+  if (last >= 3) {
+    const range = sh.getRange(3, 1, last - 2, lastCol);
+    const values = range.getValues();
+    const formulas = range.getFormulas();
+    const inputRows = [];
+    values.forEach(function (r, i) {
+      const has = r.some(function (v, k) { return v !== '' && v !== null && !formulas[i][k]; });
+      if (has) inputRows.push(i + 3);
+    });
+    if (inputRows.length > 0) {
+      throw new Error('Owlcast進捗 に手入力の行があるため作り直しを中止しました（' + inputRows.length + '行: ' + inputRows.slice(0, 10).join('・') + '行目' +
+        (inputRows.length > 10 ? ' ほか' : '') + '）。値を退避してから再実行してください');
+    }
+  }
+  maiaWriteOwlcast_(ss, sh, [], 'Owlcast 学習進捗（章別・全自治体）  データソース: Owlcast管理画面 レッスン受講履歴CSV（Owlcast取込タブ）  取込: （未取込）');
+  Logger.log('Owlcast進捗を取込方式のレイアウトに作り直しました（手入力の行なし）');
+}
+
+// Owlcast進捗を全件置換で書く。rows は MAIA_OWLCAST_HEADERS の順の値。はてな側ID がある行の 氏名・自治体名 は受講生マスタを引く数式にする
+function maiaWriteOwlcast_(ss, sh, rows, title) {
+  sh.setFrozenColumns(0);
+  sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
+  const cols = maiaOwlcastColumns_();
+  const mc = maiaMasterColumns_(ss.getSheetByName(MAIA_TAB_MASTER));
   const m = "'" + MAIA_TAB_MASTER + "'!";
   const idL = maiaColLetter_(mc.id + 1), nameL = maiaColLetter_(mc.name + 1);
   const muniL = mc.muni >= 0 ? maiaColLetter_(mc.muni + 1) : null;
-  const noF = [], nameF = [], muniF = [];
-  for (let i = 0; i < rows; i++) {
-    const r = i + 3;
-    noF.push(['=IF($B' + r + '="","",ROW()-2)']);
-    nameF.push(['=IF($B' + r + '="","",IFERROR(XLOOKUP($B' + r + ',' + m + '$' + idL + '$3:$' + idL + ',' + m + '$' + nameL + '$3:$' + nameL + '),"（マスタに無いID）"))']);
-    muniF.push([muniL ? '=IF($B' + r + '="","",IFERROR(XLOOKUP($B' + r + ',' + m + '$' + idL + '$3:$' + idL + ',' + m + '$' + muniL + '$3:$' + muniL + ')&"",""))' : '']);
-  }
-  sh.getRange(3, 1, rows, 1).setFormulas(noF);
-  sh.getRange(3, 3, rows, 1).setFormulas(nameF);
-  sh.getRange(3, 4, rows, 1).setFormulas(muniF);
-  // 入力規則: はてな側ID は受講生マスタの値から選ぶ。状況・章は安曇野市シートの表記に合わせる
-  sh.getRange(3, 1, rows, 4).clearDataValidations();
-  const idRule = SpreadsheetApp.newDataValidation()
-    .requireValueInRange(master.getRange(3, mc.id + 1, MAIA_MASTER_ROWS, 1), true).setAllowInvalid(false).build();
-  const statusRule = SpreadsheetApp.newDataValidation().requireValueInList(['受講済', '受講中', '未着手'], true).setAllowInvalid(false).build();
-  const chapterRule = SpreadsheetApp.newDataValidation().requireValueInList(['済', '中', '－'], true).setAllowInvalid(false).build();
-  sh.getRange(3, 2, rows, 1).setDataValidation(idRule);
-  sh.getRange(3, 5, rows, 1).setDataValidation(statusRule);
-  sh.getRange(3, 7, rows, 6).setDataValidation(chapterRule);
-  const widths = [50, 110, 140, 100, 80, 80, 80, 100, 120, 80, 170, 100, 130, 110, 110, 110, 260, 110];
-  widths.forEach(function (w, i) { sh.setColumnWidth(i + 1, Math.max(w, maiaTextWidth_(MAIA_OWLCAST_HEADERS[i]))); });
-  sh.setFrozenRows(2);
+  writeMaiaTable_(sh, title, cols, rows, function (s, count) {
+    if (count === 0) return;
+    s.getRange(3, 2, count, 1).setNumberFormat('@').setValues(rows.map(function (r) { return [r[1]]; }));
+    const f = rows.map(function (r, i) {
+      const row = i + 3;
+      if (!r[1]) return ['="' + String(r[2]).replace(/"/g, '""') + '"', '="' + String(r[3]).replace(/"/g, '""') + '"'];
+      return [
+        '=IFERROR(XLOOKUP($B' + row + ',' + m + '$' + idL + '$3:$' + idL + ',' + m + '$' + nameL + '$3:$' + nameL + '),"（マスタに無いID）")',
+        muniL ? '=IFERROR(XLOOKUP($B' + row + ',' + m + '$' + idL + '$3:$' + idL + ',' + m + '$' + muniL + '$3:$' + muniL + ')&"","")' : ''
+      ];
+    });
+    s.getRange(3, 3, count, 2).setFormulas(f);
+  }, false);
   sh.setFrozenColumns(4);
+}
+
+// 「Owlcast取込」「Owlcast会員取込」タブ（貼り付け欄）を用意する。無ければ作る。
+// 1行目タイトル・2行目説明だけを書き、3行目以降（貼り付けた CSV）には触れない。
+// A1・A2 に CSV が貼られていた場合（タイトルが消えている）は、上書きしないよう何もしない
+function setupMaiaPasteTabs_(ss) {
+  const tabs = [
+    [MAIA_TAB_OWL_IMPORT, 'Owlcast取込（レッスン受講履歴CSVの貼り付け欄・はてなベース用）  同期では消えません。集計結果は Owlcast進捗 タブに出ます',
+      '【貼り付け方】Owlcast管理画面「学習状況」→「受講履歴」→「レッスン受講履歴」で全件をCSV出力し、このタブの3行目以降をすべて削除してから A3 セルに CSV を見出し行ごと貼り付け（毎回全件を貼り替え）。そのあと試験システムのメニュー「MAIA共有進捗」→「Owlcast取込を集計する」を実行'],
+    [MAIA_TAB_OWL_MEMBER, 'Owlcast会員取込（会員一覧CSVの貼り付け欄・はてなベース用）  同期では消えません。受講生マスタの Owlcast会員ID を埋めるときだけ使います',
+      '【貼り付け方】Owlcast管理画面「会員管理」→「会員一覧」でCSV出力し、このタブの3行目以降をすべて削除してから A3 セルに CSV を見出し行ごと貼り付け。そのあと試験システムのメニュー「MAIA共有進捗」→「Owlcast会員IDを受講生マスタに記入する」を実行（メールアドレスで突合し、空欄だけを埋める）']
+  ];
+  tabs.forEach(function (t) {
+    let sh = ss.getSheetByName(t[0]);
+    if (!sh) {
+      sh = ss.insertSheet(t[0]);
+      Logger.log('タブを作成: ' + t[0]);
+    }
+    const a1 = String(sh.getRange('A1').getDisplayValue());
+    const a2 = String(sh.getRange('A2').getDisplayValue());
+    if ((a1 === '' || a1.indexOf(t[0] + '（') === 0) && (a2 === '' || a2.indexOf('【貼り付け方】') === 0)) {
+      sh.getRange('A1').setValue(t[1]).setFontFamily('Arial').setFontSize(12).setFontWeight('bold').setWrap(false);
+      sh.getRange('A2').setValue(t[2]).setFontFamily('Arial').setFontSize(10).setFontWeight('normal').setFontColor('#555555').setWrap(false);
+    } else {
+      Logger.log(t[0] + ' の1・2行目に貼り付けの値があるため、タイトルと説明は書きませんでした');
+    }
+  });
 }
 
 // ===== 同期本体（1時間ごと） =====
@@ -440,7 +542,8 @@ function syncFukuyamaToMaiaSheet() {
 function maiaSyncCore_() {
   const sourceId = maiaSourceId_();
   const src = SpreadsheetApp.openById(sourceId); // 読み取りのみ
-  const ss = SpreadsheetApp.openById(MAIA_TARGET_SS_ID);
+  const targetId = maiaTargetId_();
+  const ss = SpreadsheetApp.openById(targetId);
   if (ss.getSpreadsheetTimeZone() !== 'Asia/Tokyo') ss.setSpreadsheetTimeZone('Asia/Tokyo'); // 日時表示を日本時間に揃える
 
   const master = readMaiaMaster_(ss);
@@ -474,6 +577,7 @@ function maiaSyncCore_() {
   const muniText = muniOrder.map(function (k) { return k + ' ' + byMuni[k] + '名'; }).join('・');
   let summary = '受講生 ' + master.length + '名' + (muniText ? '（' + muniText + '）' : '') + '（うち はてな側ID未登録 ' + unregistered + '名）／スキルチェック ' + skillRows.length + '件／認定試験 ' + testRows.length + '件';
   if (sourceId !== MAIA_SOURCE_SS_ID) summary += '\n※検証用コピーを参照中（' + sourceId + '）';
+  if (targetId !== MAIA_TARGET_SS_ID) summary += '\n※共有シートの検証用コピーに書き込み中';
   const lastRegister = PropertiesService.getScriptProperties().getProperty(MAIA_PROP_LAST_REGISTER);
   if (lastRegister) summary += '\n最終登録: ' + lastRegister;
   const readme = ss.getSheetByName(MAIA_TAB_README);
@@ -504,6 +608,7 @@ function readMaiaMaster_(ss) {
       email: String(v[mc.email]).trim(),
       id: String(v[mc.id]).trim(),
       note: mc.note >= 0 ? String(v[mc.note]).trim() : '',
+      owl: mc.owl >= 0 ? String(v[mc.owl]).trim() : '',
       idCol: mc.id + 1
     });
   });
@@ -693,8 +798,12 @@ function registerFromMaster(sourceId, opts) {
   if (!lock.tryLock(30000)) throw new Error('別の処理が実行中です。少し待って再実行してください');
   try {
     const srcId = (typeof sourceId === 'string' && sourceId) ? sourceId : maiaSourceId_();
+    // 共有シートの検証用コピーに書き込み中は、本番の試験システムへの登録を止める（検証データで本番に行を足さない）
+    if (maiaTargetId_() !== MAIA_TARGET_SS_ID && srcId === MAIA_SOURCE_SS_ID) {
+      throw new Error('共有シートの検証用コピーに切り替え中は、本番の試験システムへ登録できません（maiaTestUseProductionTarget で戻すか、試験システムも検証用コピーに切り替えてください）');
+    }
     const src = SpreadsheetApp.openById(srcId);
-    const ss = SpreadsheetApp.openById(MAIA_TARGET_SS_ID);
+    const ss = SpreadsheetApp.openById(maiaTargetId_());
     const masterSh = ss.getSheetByName(MAIA_TAB_MASTER);
     if (!masterSh) throw new Error('受講生マスタ タブがありません（setupMaiaSheet を実行してください）');
     if (maiaMasterColumns_(masterSh).muni < 0) throw new Error('受講生マスタに見出し「' + MAIA_MH_MUNI + '」がありません（setupMaiaSheet を実行してください）');
@@ -819,6 +928,338 @@ function maiaEnsureColumn_(sheet, headerName, log) {
   return idx;
 }
 
+// ===== Owlcast 取込（手動実行専用。トリガーに載せない） =====
+// 「Owlcast取込」タブに貼り付けたレッスン受講履歴CSVを読み、「Owlcast進捗」を作り直す。
+// - 対象は受講生マスタで Owlcast会員ID がある受講生全員（マスタの行順）。CSV の会員はログイン名「氏名(ID:483)」の括弧内（または会員ID列）で突合
+// - 章番号はレッスン名の【n章】から取る。1〜6章以外のレッスン（章番号なし等）は集計に使わない（件数をログに出す）
+// - 章の完了: CSV 全体でその章に出てくるレッスン（レッスンID、無ければレッスン名）を、その受講生がすべて受講済にしたとき。完了日はその最後の完了日時
+// - 状況: 1〜6章の行が無い＝未着手／6章すべて完了＝受講済／それ以外＝受講中
+// - 受講時間合計(分) は1〜6章の行の受講時間の合計（秒を合算して分に四捨五入）。受講開始日＝受講開始日時の最小、最終受講日＝最終更新日時の最大
+// - 備考は前回の Owlcast進捗 から はてな側ID で引き継ぐ。取得日は実行日時
+// 戻り値は結果の要約（メニュー実行時にダイアログに出す）
+function importOwlcastHistory() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('別の処理が実行中です。少し待って再実行してください');
+  try {
+    return maiaImportOwlcastCore_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function maiaImportOwlcastCore_() {
+  const targetId = maiaTargetId_();
+  const ss = SpreadsheetApp.openById(targetId);
+  if (ss.getSpreadsheetTimeZone() !== 'Asia/Tokyo') ss.setSpreadsheetTimeZone('Asia/Tokyo');
+  const imp = ss.getSheetByName(MAIA_TAB_OWL_IMPORT);
+  const out = ss.getSheetByName(MAIA_TAB_OWLCAST);
+  if (!imp || !out) throw new Error('「' + MAIA_TAB_OWL_IMPORT + '」または「' + MAIA_TAB_OWLCAST + '」タブがありません（setupMaiaSheet を実行してください）');
+  const masterSh = ss.getSheetByName(MAIA_TAB_MASTER);
+  if (maiaMasterColumns_(masterSh).owl < 0) throw new Error('受講生マスタに見出し「' + MAIA_MH_OWL + '」がありません（setupMaiaSheet を実行してください）');
+  // 旧レイアウト（手入力方式）に手入力の行が残っていれば、消さないよう中止する（レイアウトが取込方式なら何もしない）
+  setupMaiaOwlcast_(ss);
+
+  const t = maiaReadPasteTable_(imp, MAIA_OWL_HISTORY_COLS, MAIA_TAB_OWL_IMPORT);
+  if (t.idx.memberId < 0 && t.idx.login < 0) {
+    throw new Error(MAIA_TAB_OWL_IMPORT + ' に会員を示す列がありません（候補: ' + MAIA_OWL_HISTORY_COLS.login.names.concat(MAIA_OWL_HISTORY_COLS.memberId.names).join('／') +
+      '）。見つかった見出し: ' + t.header.join('／'));
+  }
+  const log = [];
+  const stats = { rows: t.rows.length, used: 0, noMember: 0, noChapter: 0, badDuration: 0 };
+  const lessonsByChapter = {}; // 章 → { レッスンキー: true }（CSV 全体）
+  const members = {};          // 会員ID → 集計
+  const loginNames = {};       // 会員ID → ログイン名（ログ用）
+  t.rows.forEach(function (r) {
+    const login = t.idx.login >= 0 ? String(r[t.idx.login]).trim() : '';
+    const mid = t.idx.memberId >= 0 && String(r[t.idx.memberId]).trim() ? maiaNormId_(r[t.idx.memberId]) : maiaMemberIdFromLogin_(login);
+    if (!mid) { stats.noMember++; return; }
+    const lessonName = String(r[t.idx.lesson]).trim();
+    const ch = maiaChapterNo_(lessonName);
+    if (!ch || ch > MAIA_OWLCAST_CHAPTERS) { stats.noChapter++; return; }
+    stats.used++;
+    if (login && !loginNames[mid]) loginNames[mid] = login;
+    const lessonId = t.idx.lessonId >= 0 ? String(r[t.idx.lessonId]).trim() : '';
+    const key = lessonId ? 'id:' + lessonId : 'name:' + lessonName;
+    if (!lessonsByChapter[ch]) lessonsByChapter[ch] = {};
+    lessonsByChapter[ch][key] = true;
+    const start = maiaParseDateTime_(r[t.idx.start]);
+    const done = maiaParseDateTime_(r[t.idx.done]);
+    const updated = maiaParseDateTime_(r[t.idx.updated]);
+    const sec = maiaParseDuration_(r[t.idx.seconds]);
+    if (sec === null) { if (String(r[t.idx.seconds]).trim() !== '') stats.badDuration++; }
+    const status = String(r[t.idx.status]).trim();
+    if (!members[mid]) members[mid] = { lessons: {}, seconds: 0, start: null, last: null };
+    const m = members[mid];
+    m.seconds += sec || 0;
+    if (start && (!m.start || start < m.start)) m.start = start;
+    const lastAt = updated || done || start;
+    if (lastAt && (!m.last || lastAt > m.last)) m.last = lastAt;
+    if (!m.lessons[key]) m.lessons[key] = { ch: ch, completed: false, doneAt: null };
+    const l = m.lessons[key];
+    if (status === '受講済' || done) {
+      l.completed = true;
+      const at = done || updated;
+      if (at && (!l.doneAt || at < l.doneAt)) l.doneAt = at; // 複数回受講済なら最初の完了
+    }
+  });
+
+  // 前回の備考（はてな側ID → 備考）
+  const notes = {};
+  const oLast = out.getLastRow();
+  if (oLast >= 3) {
+    const oHead = out.getRange(2, 1, 1, Math.max(out.getLastColumn(), 1)).getDisplayValues()[0].map(function (h) { return String(h).trim(); });
+    const oId = oHead.indexOf('はてな側ID'), oNote = oHead.indexOf('備考');
+    if (oId >= 0 && oNote >= 0) {
+      out.getRange(3, 1, oLast - 2, oHead.length).getValues().forEach(function (v) {
+        const id = String(v[oId]).trim();
+        if (id && String(v[oNote]).trim() !== '' && !(id in notes)) notes[id] = v[oNote];
+      });
+    }
+  }
+
+  const now = new Date();
+  const master = readMaiaMaster_(ss);
+  const seenOwl = {};
+  const rows = [];
+  let started = 0, finished = 0;
+  master.forEach(function (p) {
+    if (!p.owl) return;
+    const owl = maiaNormId_(p.owl);
+    if (seenOwl[owl]) {
+      log.push('スキップ（受講生マスタで Owlcast会員ID が重複。' + seenOwl[owl] + '行目と同じ）: マスタ ' + p.row + '行目');
+      return;
+    }
+    seenOwl[owl] = p.row;
+    const m = members[owl];
+    const chapters = [];
+    let doneCount = 0, lastDone = null;
+    for (let c = 1; c <= MAIA_OWLCAST_CHAPTERS; c++) {
+      const mine = m ? Object.keys(m.lessons).filter(function (k) { return m.lessons[k].ch === c; }) : [];
+      if (mine.length === 0) { chapters.push(''); continue; }
+      const expected = Object.keys(lessonsByChapter[c] || {});
+      const complete = expected.every(function (k) { return m.lessons[k] && m.lessons[k].completed; });
+      if (!complete) { chapters.push('中'); continue; }
+      let at = null;
+      expected.forEach(function (k) { const d = m.lessons[k].doneAt; if (d && (!at || d > at)) at = d; });
+      doneCount++;
+      if (at && (!lastDone || at > lastDone)) lastDone = at;
+      chapters.push(at || '済');
+    }
+    const status = !m ? '未着手' : (doneCount === MAIA_OWLCAST_CHAPTERS ? '受講済' : '受講中');
+    if (m) started++;
+    if (status === '受講済') finished++;
+    rows.push([rows.length + 1, p.id, p.name, p.muni, status, doneCount].concat(chapters).concat([
+      m ? Math.round(m.seconds / 60) : 0,
+      m && m.start ? m.start : '',
+      status === '受講済' && lastDone ? lastDone : '',
+      m && m.last ? m.last : '',
+      p.id && (p.id in notes) ? notes[p.id] : '',
+      now
+    ]));
+    if (!p.id) log.push('はてな側ID が空の受講生を含めました（氏名・自治体名は値で表示）: マスタ ' + p.row + '行目');
+  });
+  const unknown = Object.keys(members).filter(function (k) { return !seenOwl[k]; });
+  if (unknown.length > 0) {
+    log.push('受講生マスタに Owlcast会員ID が無い会員（集計対象外）' + unknown.length + '名: ' +
+      unknown.map(function (k) { return 'ID:' + k + (loginNames[k] ? '（' + loginNames[k] + '）' : ''); }).join('、'));
+  }
+  const stamp = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+  const title = 'Owlcast 学習進捗（章別・全自治体）  データソース: Owlcast管理画面 レッスン受講履歴CSV（Owlcast取込タブ。はてなベースが週2回貼り付けて集計）  取込: ' + stamp +
+    '（CSV ' + stats.rows + '行）  ※取込のたびに作り直します。備考は はてな側ID ごとに引き継ぎます';
+  maiaWriteOwlcast_(ss, out, rows, title);
+  // 貼り付け欄の見出し行に見出しの書式を当てる（値は変えない）
+  if (!t.raw) {
+    imp.getRange(t.headerRow, 1, 1, t.header.length).setBackground(MAIA_HEADER_BG).setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+  }
+  const summary = stamp + ' 取込: CSV ' + stats.rows + '行（集計に使用 ' + stats.used + '行・章番号なし/7章以降 ' + stats.noChapter + '行・会員IDなし ' + stats.noMember + '行' +
+    (stats.badDuration ? '・受講時間を読めない ' + stats.badDuration + '行' : '') + '）／Owlcast進捗 ' + rows.length + '名（受講済 ' + finished + '名・受講中 ' + (started - finished) +
+    '名・未着手 ' + (rows.length - started) + '名）／マスタ外の会員 ' + unknown.length + '名' + (targetId !== MAIA_TARGET_SS_ID ? ' ※共有シートの検証用コピー' : '');
+  Logger.log(summary + (log.length ? '\n' + log.join('\n') : ''));
+  return summary + (log.length ? '\n' + log.join('\n') : '');
+}
+
+// 「Owlcast会員取込」タブに貼り付けた会員一覧CSVを読み、受講生マスタの Owlcast会員ID の空欄をメールアドレスで突合して埋める（手動実行専用）。
+// 既に値がある行は上書きしない（CSV と違えばログに出す）。突合できなかった受講生をログに列挙する。書くのは Owlcast会員ID のセルだけ
+function fillOwlcastMemberIds() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('別の処理が実行中です。少し待って再実行してください');
+  try {
+    const targetId = maiaTargetId_();
+    const ss = SpreadsheetApp.openById(targetId);
+    const sh = ss.getSheetByName(MAIA_TAB_OWL_MEMBER);
+    if (!sh) throw new Error('「' + MAIA_TAB_OWL_MEMBER + '」タブがありません（setupMaiaSheet を実行してください）');
+    const masterSh = ss.getSheetByName(MAIA_TAB_MASTER);
+    const mc = maiaMasterColumns_(masterSh);
+    if (mc.owl < 0) throw new Error('受講生マスタに見出し「' + MAIA_MH_OWL + '」がありません（setupMaiaSheet を実行してください）');
+    const t = maiaReadPasteTable_(sh, MAIA_OWL_MEMBER_COLS, MAIA_TAB_OWL_MEMBER);
+    if (t.idx.memberId < 0 && t.idx.login < 0) {
+      throw new Error(MAIA_TAB_OWL_MEMBER + ' に会員IDの列がありません（候補: ' + MAIA_OWL_MEMBER_COLS.memberId.names.concat(MAIA_OWL_MEMBER_COLS.login.names).join('／') +
+        '）。見つかった見出し: ' + t.header.join('／'));
+    }
+    const byEmail = {};
+    const conflict = {};
+    t.rows.forEach(function (r) {
+      const email = String(r[t.idx.email]).trim().toLowerCase();
+      const id = t.idx.memberId >= 0 && String(r[t.idx.memberId]).trim() ? maiaNormId_(r[t.idx.memberId]) : maiaMemberIdFromLogin_(t.idx.login >= 0 ? r[t.idx.login] : '');
+      if (!email || !id) return;
+      if (byEmail[email] && byEmail[email] !== id) conflict[email] = true;
+      byEmail[email] = id;
+    });
+    const master = readMaiaMaster_(ss);
+    const used = {};
+    master.forEach(function (p) { if (p.owl) used[maiaNormId_(p.owl)] = p.row; });
+    const log = [];
+    const unmatched = [];
+    let written = 0, kept = 0;
+    master.forEach(function (p) {
+      const label = 'マスタ ' + p.row + '行目' + (p.id ? '（' + p.id + ' ' + p.name + '）' : '（' + p.name + '）');
+      const key = p.email.toLowerCase();
+      const csvId = key ? byEmail[key] : '';
+      if (p.owl) {
+        kept++;
+        if (csvId && csvId !== maiaNormId_(p.owl)) log.push('既存の値を残しました（CSV では ' + csvId + '）: ' + label);
+        return;
+      }
+      if (!key) { unmatched.push(label + ' メールアドレスが空'); return; }
+      if (conflict[key]) { unmatched.push(label + ' CSV に同じメールアドレスの会員が複数'); return; }
+      if (!csvId) { unmatched.push(label + ' CSV に同じメールアドレスの会員がいない'); return; }
+      if (used[csvId]) { unmatched.push(label + ' 会員ID ' + csvId + ' はマスタ ' + used[csvId] + '行目で使用済み'); return; }
+      // 書く直前にその行を読み直し、メールアドレスが変わっていない・Owlcast会員ID が空のときだけ書く（同時編集への備え）
+      const now = masterSh.getRange(p.row, 1, 1, mc.width).getDisplayValues()[0];
+      if (String(now[mc.email]).trim().toLowerCase() !== key || String(now[mc.owl]).trim() !== '') {
+        unmatched.push(label + ' 実行中に行が変わったため書き込まず（再実行してください）');
+        return;
+      }
+      masterSh.getRange(p.row, mc.owl + 1).setNumberFormat('@').setValue(csvId);
+      used[csvId] = p.row;
+      written++;
+    });
+    SpreadsheetApp.flush();
+    const summary = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm') + ' 会員取込: CSV ' + t.rows.length + '行／受講生マスタ ' + master.length + '名のうち 記入 ' + written +
+      '名・記入済みで変更なし ' + kept + '名・突合できず ' + unmatched.length + '名' + (targetId !== MAIA_TARGET_SS_ID ? ' ※共有シートの検証用コピー' : '');
+    const detail = log.concat(unmatched.map(function (u) { return '突合できず: ' + u; }));
+    Logger.log(summary + (detail.length ? '\n' + detail.join('\n') : ''));
+    return summary + (detail.length ? '\n' + detail.join('\n') : '');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 貼り付け欄を読み、見出し行（specs の見出し候補が2つ以上ある最初の行。1〜15行目から探す）とデータ行を返す。
+// CSV をテキストのまま貼った場合（A列だけに「,」区切りの文字列が入った行）は、その行を CSV として分解して読む。
+// 必須の見出しが無ければ、候補名と見つかった見出しを列挙したエラーで止める
+function maiaReadPasteTable_(sh, specs, label) {
+  const last = sh.getLastRow();
+  if (last < 1) throw new Error(label + ' に CSV が貼り付けられていません');
+  const width = Math.max(sh.getLastColumn(), 1);
+  let raw = false;
+  const grid = sh.getRange(1, 1, last, width).getDisplayValues().map(function (r) {
+    const onlyA = r.every(function (v, k) { return k === 0 || String(v) === ''; });
+    if (onlyA && String(r[0]).indexOf(',') >= 0) {
+      raw = true;
+      try { return Utilities.parseCsv(String(r[0]))[0] || []; } catch (e) { return r; }
+    }
+    return r;
+  });
+  const norm = function (h) { return String(h).replace(/^﻿/, '').replace(/^"|"$/g, '').trim().toLowerCase(); };
+  const keys = Object.keys(specs);
+  const findIdx = function (header) {
+    const idx = {};
+    keys.forEach(function (k) {
+      idx[k] = -1;
+      specs[k].names.some(function (n) {
+        const i = header.indexOf(norm(n));
+        if (i >= 0) { idx[k] = i; return true; }
+        return false;
+      });
+    });
+    return idx;
+  };
+  let headerRow = -1, idx = null;
+  for (let i = 0; i < Math.min(grid.length, 15); i++) {
+    const h = grid[i].map(norm);
+    const found = findIdx(h);
+    if (keys.filter(function (k) { return found[k] >= 0; }).length >= 2) { headerRow = i; idx = found; break; }
+  }
+  const allNames = keys.map(function (k) { return specs[k].label + '（' + specs[k].names.join('／') + '）'; }).join('、');
+  if (headerRow < 0) {
+    throw new Error(label + ' に CSV の見出し行が見つかりません。CSV の1行目（見出し）ごと A3 セルに貼り付けてください。探した見出し: ' + allNames);
+  }
+  const header = grid[headerRow].map(function (h) { return String(h).replace(/^﻿/, '').trim(); });
+  while (header.length > 0 && header[header.length - 1] === '') header.pop();
+  const missing = keys.filter(function (k) { return specs[k].required && idx[k] < 0; });
+  if (missing.length > 0) {
+    throw new Error(label + ' に見出しが見つかりません: ' + missing.map(function (k) { return '「' + specs[k].label + '」（候補: ' + specs[k].names.join('／') + '）'; }).join('、') +
+      '。見つかった見出し（' + (headerRow + 1) + '行目）: ' + header.join('／'));
+  }
+  const rows = grid.slice(headerRow + 1).filter(function (r) { return r.some(function (v) { return String(v).trim() !== ''; }); })
+    .map(function (r) { while (r.length < header.length) r.push(''); return r; });
+  return { headerRow: headerRow + 1, header: header, idx: idx, rows: rows, raw: raw };
+}
+
+// 会員IDの表記を揃える（全角数字→半角、前後の空白を除く。数値として貼られた「483.0」等も 483 に）
+function maiaNormId_(v) {
+  let s = String(v === null || v === undefined ? '' : v).replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).trim();
+  if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, '');
+  return s;
+}
+
+// ログイン名「山本梨沙(ID:483)」から会員ID（483）を取り出す。括弧・コロンは全角も可。見つからなければ ''
+function maiaMemberIdFromLogin_(login) {
+  const s = maiaNormId_(login);
+  const m = /[(（]\s*ID\s*[:：]\s*(\d+)\s*[)）]/i.exec(s);
+  return m ? m[1] : '';
+}
+
+// レッスン名「【4章】freee会計の機能を学ぼう」から章番号を取り出す。見つからなければ 0
+function maiaChapterNo_(name) {
+  const s = maiaNormId_(name);
+  const m = /【\s*第?\s*(\d+)\s*章/.exec(s) || /第\s*(\d+)\s*章/.exec(s) || /^\s*(\d+)\s*章/.exec(s);
+  return m ? Number(m[1]) : 0;
+}
+
+// 「2026-10-03 15:14:43」「2026/10/03 15:14」などを日本時間の Date にする（空・読めない値は null）
+function maiaParseDateTime_(v) {
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  const s = String(v === null || v === undefined ? '' : v).trim();
+  const m = /^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(s);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0)); // スクリプトのタイムゾーン（Asia/Tokyo）
+}
+
+// 受講時間「04:48:40」（時:分:秒。貼り付けで時刻に変換された「4:48:40」も可）や「4時間48分40秒」を秒にする。空は 0、読めない値は null
+function maiaParseDuration_(v) {
+  const s = String(v === null || v === undefined ? '' : v).trim();
+  if (s === '') return 0;
+  let m = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(s);
+  if (m) return m[3] !== undefined ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : Number(m[1]) * 3600 + Number(m[2]) * 60;
+  m = /^(?:(\d+)\s*時間)?\s*(?:(\d+)\s*分)?\s*(?:(\d+)\s*秒)?$/.exec(s);
+  if (m && (m[1] || m[2] || m[3])) return Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0);
+  return null;
+}
+
+// ===== メニュー（試験システムのスプレッドシート。Code.gs の onOpen から呼ぶ。既存メニューの後ろに追加） =====
+function maiaAddMenu_(ui) {
+  ui.createMenu('MAIA共有進捗')
+    .addItem('Owlcast取込を集計する（Owlcast進捗を作り直す）', 'maiaMenuImportOwlcastHistory')
+    .addItem('Owlcast会員IDを受講生マスタに記入する', 'maiaMenuFillOwlcastMemberIds')
+    .addToUi();
+}
+
+function maiaMenuImportOwlcastHistory() { maiaMenuRun_('Owlcast取込の集計', importOwlcastHistory); }
+function maiaMenuFillOwlcastMemberIds() { maiaMenuRun_('Owlcast会員IDの記入', fillOwlcastMemberIds); }
+
+function maiaMenuRun_(label, fn) {
+  const ui = SpreadsheetApp.getUi();
+  let msg;
+  try {
+    msg = label + 'が完了しました\n\n' + fn();
+  } catch (e) {
+    msg = label + 'を中止しました\n\n' + (e && e.message ? e.message : e);
+  }
+  ui.alert(msg.length > 1500 ? msg.slice(0, 1500) + '…（続きは実行ログ）' : msg);
+}
+
 // ===== 検証用（GAS エディタから手動実行） =====
 // 元スプレッドシートのコピーを作り、同期・登録の参照先をコピーに切り替える
 function maiaTestUseSourceCopy() {
@@ -835,13 +1276,31 @@ function maiaTestRegisterVerificationRows() {
   registerFromMaster(override, { onlyNote: MAIA_TEST_NOTE });
 }
 
-// 参照先を本番に戻し、検証時の登録結果の記録を消す（コピー自体は Drive でゴミ箱へ）
+// 参照先を本番に戻し、検証用コピーへの登録結果の記録を消す（コピー自体は Drive でゴミ箱へ）
 function maiaTestUseProductionSource() {
   const props = PropertiesService.getScriptProperties();
   const copyId = props.getProperty(MAIA_PROP_SOURCE_OVERRIDE);
   props.deleteProperty(MAIA_PROP_SOURCE_OVERRIDE);
-  props.deleteProperty(MAIA_PROP_LAST_REGISTER);
+  // 検証用コピーへの登録記録だけを消す（本番の登録記録は README の同期結果欄に残す）
+  const lastRegister = props.getProperty(MAIA_PROP_LAST_REGISTER) || '';
+  if (lastRegister.indexOf('※検証用コピーへの登録') >= 0) props.deleteProperty(MAIA_PROP_LAST_REGISTER);
   Logger.log('参照先を本番に戻しました。検証用コピー（ゴミ箱へ移す）: ' + (copyId || 'なし'));
+}
+
+// 共有シートのコピーを作り、setupMaiaSheet・同期・Owlcast取込の書き込み先をコピーに切り替える（本番の共有シートに触れずに試す）
+function maiaTestUseTargetCopy() {
+  const name = '【検証用コピー・削除予定】MAIA共有進捗 ' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmm');
+  const copy = SpreadsheetApp.openById(MAIA_TARGET_SS_ID).copy(name);
+  PropertiesService.getScriptProperties().setProperty(MAIA_PROP_TARGET_OVERRIDE, copy.getId());
+  Logger.log('共有シートの検証用コピーを作成し書き込み先を切り替えました: ' + copy.getId() + ' ' + name);
+}
+
+// 書き込み先を本番の共有シートに戻す（コピー自体は Drive でゴミ箱へ）
+function maiaTestUseProductionTarget() {
+  const props = PropertiesService.getScriptProperties();
+  const copyId = props.getProperty(MAIA_PROP_TARGET_OVERRIDE);
+  props.deleteProperty(MAIA_PROP_TARGET_OVERRIDE);
+  Logger.log('書き込み先を本番の共有シートに戻しました。検証用コピー（ゴミ箱へ移す）: ' + (copyId || 'なし'));
 }
 
 // 見出し（Arial 10pt 太字）が折り返さない列幅の目安: 全角14px・半角8px＋左右余白
